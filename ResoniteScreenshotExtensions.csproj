@@ -1,0 +1,68 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <TargetFramework>net472</TargetFramework>
+    <LangVersion>10</LangVersion>
+    <Nullable>enable</Nullable>
+    <AppName>Resonite</AppName>
+	  <ModLoaderShort>rml</ModLoaderShort>
+    <AppPath>$(MSBuildThisFileDirectory)$(AppName)</AppPath>
+    <AppPath Condition="Exists('C:\Program Files (x86)\Steam\steamapps\common\$(AppName)\')">C:\Program Files (x86)\Steam\steamapps\common\$(AppName)\</AppPath>
+    <AppPath Condition="Exists('$(HOME)/.steam/steam/steamapps/common/$(AppName)/')">$(HOME)/.steam/steam/steamapps/common/$(AppName)/</AppPath>
+    <CopyLocal>false</CopyLocal>
+    <CopyToMods Condition="'$(CopyToMods)'==''">true</CopyToMods>
+    <DebugSymbols Condition="'$(Configuration)'=='Release'">false</DebugSymbols>
+    <DebugType Condition="'$(Configuration)'=='Release'">None</DebugType>
+    <Version>1.0.0</Version>
+    <Authors>hantabaru1014</Authors>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="HarmonyLib">
+      <HintPath>$(AppPath)$(ModLoaderShort)_libs\0Harmony.dll</HintPath>
+      <HintPath Condition="Exists('$(AppPath)0Harmony.dll')">$(AppPath)0Harmony.dll</HintPath>
+    </Reference>
+    <Reference Include="$(AppName)ModLoader">
+      <HintPath>$(AppPath)$(AppName)ModLoader.dll</HintPath>
+      <HintPath>$(AppPath)Libraries\$(AppName)ModLoader.dll</HintPath>
+    </Reference>
+    <Reference Include="FrooxEngine">
+      <HintPath>$(AppPath)$(AppName)_Data\Managed\FrooxEngine.dll</HintPath>
+    </Reference>
+    <Reference Include="FrooxEngine.Store">
+      <HintPath>$(AppPath)$(AppName)_Data\Managed\FrooxEngine.Store.dll</HintPath>
+    </Reference>
+    <Reference Include="Assembly-CSharp">
+      <HintPath>$(AppPath)$(AppName)_Data\Managed\Assembly-CSharp.dll</HintPath>
+    </Reference>
+    <Reference Include="Elements.Core">
+      <HintPath>$(AppPath)$(AppName)_Data\Managed\Elements.Core.dll</HintPath>
+    </Reference>
+    <Reference Include="Elements.Assets">
+      <HintPath>$(AppPath)$(AppName)_Data\Managed\Elements.Assets.dll</HintPath>
+    </Reference>
+    <Reference Include="SkyFrost.Base">
+      <HintPath>$(AppPath)$(AppName)_Data\Managed\SkyFrost.Base.dll</HintPath>
+    </Reference>
+    <Reference Include="MimeDetective">
+      <HintPath>$(AppPath)$(AppName)_Data\Managed\MimeDetective.dll</HintPath>
+    </Reference>
+    <Reference Include="FreeImageNET">
+      <HintPath>$(AppPath)$(AppName)_Data\Managed\FreeImageNET.dll</HintPath>
+    </Reference>
+    <Reference Include="Newtonsoft.Json">
+      <HintPath>$(AppPath)$(AppName)_Data\Managed\Newtonsoft.Json.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Threading.Tasks.Extensions">
+      <HintPath>$(AppPath)$(AppName)_Data\Managed\System.Threading.Tasks.Extensions.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Xml.Linq">
+      <HintPath>$(AppPath)$(AppName)_Data\Managed\System.Xml.Linq.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent" Condition="'$(CopyToMods)'=='true'">
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(AppPath)$(ModLoaderShort)_mods" />
+    <Message Text="Copied $(TargetFileName) to $(AppPath)" Importance="high" />
+  </Target>
+</Project>
