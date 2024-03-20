@@ -14,7 +14,7 @@ public partial class ResoniteScreenshotExtensions : ResoniteMod
         static bool NotifyOfScreenshot_Prefix()
         {
             // NotifyOfScreenshot_Postfix で代替しているのでこっちは無効化
-            return false;
+            return !(_config?.GetValue(EnabledKey) ?? false);
         }
 
         [HarmonyPostfix]

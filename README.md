@@ -12,6 +12,8 @@ Warn: Conflicts with mods that patch WindowsPlatformConnector such as [SaveExif]
     - It will be restored by importing it as an image/texture as usual
 - Dig the folder by month and date (yyyy-MM) when saving screenshot
 - File name date and time becomes local one
+- Selectable image formats: JPEG, WEBP, PNG
+- Save webp as lossy (default is lossless. By saving as lossy, you can get a smaller file size and alpha than jpeg with the same image quality)
 
 XMP format
 ```xml

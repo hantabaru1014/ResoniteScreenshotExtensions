@@ -13,20 +13,25 @@ public partial class ResoniteScreenshotExtensions : ResoniteMod
     [HarmonyPatch(typeof(PhotoMetadata))]
     class PhotoMetadata_Patch
     {
-        static void SaveImage(PhotoMetadata photoMetadata, bool convertToJPG, string srcPath, string dstPath)
+        static void SaveImage(PhotoMetadata photoMetadata, string srcPath, string dstPath, ImageFormat format)
         {
             using (var bmp = new FreeImageBitmap(srcPath))
             {
-                // TextureEncoder.ConvertToJPG と同じ処理
-                if (convertToJPG)
+                if (_config?.GetValue(SavePhotoMetadataToFileKey) ?? false)
                 {
-                    // EnsureNonHDR
-                    var imgType = bmp.ImageType;
-                    if (imgType == FREE_IMAGE_TYPE.FIT_RGBF || imgType == FREE_IMAGE_TYPE.FIT_RGBAF)
-                    {
-                        bmp.TmoDrago03(0, 0);
-                    }
+                    XmpMetadata.UpsertPhotoMetadata(bmp, photoMetadata);
+                }
 
+                // EnsureNonHDR
+                var imgType = bmp.ImageType;
+                if (imgType == FREE_IMAGE_TYPE.FIT_RGBF || imgType == FREE_IMAGE_TYPE.FIT_RGBAF)
+                {
+                    bmp.TmoDrago03(0, 0);
+                }
+
+                // TextureEncoder.ConvertToJPG と同じ処理
+                if (format == ImageFormat.JPEG)
+                {
                     // Ensure24BPP
                     if (bmp.IsTransparent || bmp.ColorDepth > 24)
                     {
@@ -34,12 +39,19 @@ public partial class ResoniteScreenshotExtensions : ResoniteMod
                     }
                 }
 
-                if (_config?.GetValue(SavePhotoMetadataToFileKey) ?? false)
+                switch (format)
                 {
-                    XmpMetadata.UpsertPhotoMetadata(bmp, photoMetadata);
+                    case ImageFormat.JPEG:
+                        bmp.Save(dstPath, FREE_IMAGE_FORMAT.FIF_JPEG, FREE_IMAGE_SAVE_FLAGS.JPEG_QUALITYSUPERB);
+                        break;
+                    case ImageFormat.WEBP:
+                        FREE_IMAGE_SAVE_FLAGS quality = (_config?.GetValue(LossyWebpKey) ?? false) ? (FREE_IMAGE_SAVE_FLAGS)_config.GetValue(LossyWebpQualityKey) : FREE_IMAGE_SAVE_FLAGS.WEBP_LOSSLESS;
+                        bmp.Save(dstPath, FreeImage.GetFIFFromFormat("webp"), quality);
+                        break;
+                    case ImageFormat.PNG:
+                        bmp.Save(dstPath, FREE_IMAGE_FORMAT.FIF_PNG, FREE_IMAGE_SAVE_FLAGS.PNG_Z_BEST_COMPRESSION);
+                        break;
                 }
-
-                bmp.Save(dstPath);
             }
         }
 
@@ -47,6 +59,8 @@ public partial class ResoniteScreenshotExtensions : ResoniteMod
         [HarmonyPatch(nameof(PhotoMetadata.NotifyOfScreenshot))]
         static void NotifyOfScreenshot_Postfix(PhotoMetadata __instance)
         {
+            if (!(_config?.GetValue(EnabledKey) ?? false)) return;
+
             // PhotoMetadata を WindowsPlatformConnector.NotifyOfScreenshot に確実に渡すのが面倒なのでここで代替する
             __instance.StartGlobalTask(async () =>
             {
@@ -69,13 +83,21 @@ public partial class ResoniteScreenshotExtensions : ResoniteMod
                 Directory.CreateDirectory(pictures);
 
                 string filename = timeTaken.ToString("yyyy-MM-dd HH.mm.ss");
-                string extension = _keepOriginalScreenshotFormat ? Path.GetExtension(tmpPath) : ".jpg";
+                var format = _config?.GetValue(ImageFormatKey) ?? ImageFormat.JPEG;
+                string extension = _keepOriginalScreenshotFormat ? Path.GetExtension(tmpPath) : format switch
+                {
+                    ImageFormat.JPEG => ".jpg",
+                    ImageFormat.WEBP => ".webp",
+                    ImageFormat.PNG => ".png",
+                    _ => ".jpg"
+                };
                 if (string.IsNullOrWhiteSpace(extension))
                 {
                     FileType fileType = new FileInfo(tmpPath).GetFileType();
                     if (fileType != null)
                         extension = "." + fileType.Extension;
                 }
+                extension = extension.ToLower();
                 await WindowsPlatformConnector.ScreenshotSemaphore.WaitAsync().ConfigureAwait(false);
                 try
                 {
@@ -91,7 +113,16 @@ public partial class ResoniteScreenshotExtensions : ResoniteMod
                     }
                     while (File.Exists(str1));
 
-                    SaveImage(__instance, !_keepOriginalScreenshotFormat, tmpPath, str1);
+                    if (_keepOriginalScreenshotFormat && !(extension == ".jpg" || extension == ".webp" || extension == ".png"))
+                    {
+                        File.Copy(tmpPath, str1);
+                        File.SetAttributes(str1, FileAttributes.Normal);
+                        Msg($"{str1} is an unsupported format, so metadata was not saved.");
+                    }
+                    else
+                    {
+                        SaveImage(__instance, tmpPath, str1, format);
+                    }
                 }
                 catch (Exception ex)
                 {
