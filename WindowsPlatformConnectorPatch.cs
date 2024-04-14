@@ -1,6 +1,6 @@
-﻿using HarmonyLib;
+﻿using FrooxEngine;
+using HarmonyLib;
 using ResoniteModLoader;
-using System.Threading.Tasks;
 
 namespace ResoniteScreenshotExtensions;
 
@@ -19,21 +19,14 @@ public partial class ResoniteScreenshotExtensions : ResoniteMod
 
         [HarmonyPostfix]
         [HarmonyPatch(nameof(WindowsPlatformConnector.Initialize))]
-        static void Initialize_Postfix(WindowsPlatformConnector __instance)
+        static void Initialize_Postfix()
         {
-            var updateAction = () =>
-            {
-                Task.Run(async () =>
-                {
-                    var result = await __instance.Engine.LocalDB.TryReadVariableAsync<bool>(WindowsPlatformConnector.SCREENSHOT_FORMAT_SETTING);
-                    if (result.hasValue)
-                    {
-                        _keepOriginalScreenshotFormat = result.value;
-                    }
-                });
-            };
-            updateAction();
-            __instance.Engine.LocalDB.RegisterVariableListener(WindowsPlatformConnector.SCREENSHOT_FORMAT_SETTING, updateAction);
+            Settings.RegisterValueChanges<WindowsSettings>(OnSettingsChanged);
+        }
+
+        private static void OnSettingsChanged(WindowsSettings setting)
+        {
+            _keepOriginalScreenshotFormat = setting.KeepOriginalScreenshotFormat.Value;
         }
     }
 }
