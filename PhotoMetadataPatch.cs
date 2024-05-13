@@ -113,11 +113,25 @@ public partial class ResoniteScreenshotExtensions : ResoniteMod
                     }
                     while (File.Exists(str1));
 
-                    if (_keepOriginalScreenshotFormat && !(extension == ".jpg" || extension == ".webp" || extension == ".png"))
+                    if (_keepOriginalScreenshotFormat)
                     {
-                        File.Copy(tmpPath, str1);
-                        File.SetAttributes(str1, FileAttributes.Normal);
-                        Msg($"{str1} is an unsupported format, so metadata was not saved.");
+                        if (extension != ".jpg" && extension != ".webp" && extension != ".png")
+                        {
+                            File.Copy(tmpPath, str1);
+                            File.SetAttributes(str1, FileAttributes.Normal);
+                            Msg($"{str1} is an unsupported format, so metadata was not saved.");
+                        }
+                        else
+                        {
+                            var extFormat = extension switch
+                            {
+                                ".jpg" => ImageFormat.JPEG,
+                                ".webp" => ImageFormat.WEBP,
+                                ".png" => ImageFormat.PNG,
+                                _ => ImageFormat.JPEG
+                            };
+                            SaveImage(__instance, tmpPath, str1, extFormat);
+                        }
                     }
                     else
                     {
