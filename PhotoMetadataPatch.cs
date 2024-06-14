@@ -5,6 +5,7 @@ using System.IO;
 using MimeDetective;
 using ResoniteModLoader;
 using System;
+using Elements.Core;
 
 namespace ResoniteScreenshotExtensions;
 
@@ -64,87 +65,98 @@ public partial class ResoniteScreenshotExtensions : ResoniteMod
             // PhotoMetadata を WindowsPlatformConnector.NotifyOfScreenshot に確実に渡すのが面倒なのでここで代替する
             __instance.StartGlobalTask(async () =>
             {
-                var tex = __instance.Slot.GetComponent<StaticTexture2D>();
-                var url = tex?.URL.Value;
-                if (url is null) return;
-
-                await new ToBackground();
-                // キャッシュが効いてるはずなので重複して実行しても大してコストはかからない認識
-                var tmpPath = await __instance.Engine.AssetManager.GatherAssetFile(url, 100f);
-                if (tmpPath is null) return;
-
-                var timeTaken = __instance.TimeTaken.Value.ToLocalTime();
-                string pictures = Environment.GetFolderPath(Environment.SpecialFolder.MyPictures);
-                pictures = Path.Combine(pictures, __instance.Engine.Cloud.Platform.Name);
-                if (_config?.GetValue(DigFolderWhenSavingKey) ?? false)
-                {
-                    pictures = Path.Combine(pictures, timeTaken.ToString("yyyy-MM"));
-                }
-                Directory.CreateDirectory(pictures);
-
-                string filename = timeTaken.ToString("yyyy-MM-dd HH.mm.ss");
-                var format = _config?.GetValue(ImageFormatKey) ?? ImageFormat.JPEG;
-                string extension = _keepOriginalScreenshotFormat ? Path.GetExtension(tmpPath) : format switch
-                {
-                    ImageFormat.JPEG => ".jpg",
-                    ImageFormat.WEBP => ".webp",
-                    ImageFormat.PNG => ".png",
-                    _ => ".jpg"
-                };
-                if (string.IsNullOrWhiteSpace(extension))
-                {
-                    FileType fileType = new FileInfo(tmpPath).GetFileType();
-                    if (fileType != null)
-                        extension = "." + fileType.Extension;
-                }
-                extension = extension.ToLower();
-                await WindowsPlatformConnector.ScreenshotSemaphore.WaitAsync().ConfigureAwait(false);
                 try
                 {
-                    int num = 1;
-                    string str1;
-                    do
-                    {
-                        string str2 = filename;
-                        if (num > 1)
-                            str2 += string.Format(" ({0})", num);
-                        str1 = Path.Combine(pictures, str2 + extension);
-                        num++;
-                    }
-                    while (File.Exists(str1));
+                    var tex = __instance.Slot.GetComponent<StaticTexture2D>();
+                    var url = tex?.URL.Value;
+                    if (url is null) return;
 
-                    if (_keepOriginalScreenshotFormat)
+                    await new ToBackground();
+                    // キャッシュが効いてるはずなので重複して実行しても大してコストはかからない認識
+                    var tmpPath = await __instance.Engine.AssetManager.GatherAssetFile(url, 100f);
+                    if (tmpPath is null) return;
+
+                    var timeTaken = __instance.TimeTaken.Value.ToLocalTime();
+                    string pictures = Environment.GetFolderPath(Environment.SpecialFolder.MyPictures);
+                    pictures = Path.Combine(pictures, __instance.Engine.Cloud.Platform.Name);
+                    if (_config?.GetValue(DigFolderWhenSavingKey) ?? false)
                     {
-                        if (extension != ".jpg" && extension != ".webp" && extension != ".png")
+                        pictures = Path.Combine(pictures, timeTaken.ToString("yyyy-MM"));
+                    }
+                    Directory.CreateDirectory(pictures);
+
+                    string filename = timeTaken.ToString("yyyy-MM-dd HH.mm.ss");
+                    var format = _config?.GetValue(ImageFormatKey) ?? ImageFormat.JPEG;
+                    string extension = _keepOriginalScreenshotFormat ? Path.GetExtension(tmpPath) : format switch
+                    {
+                        ImageFormat.JPEG => ".jpg",
+                        ImageFormat.WEBP => ".webp",
+                        ImageFormat.PNG => ".png",
+                        _ => ".jpg"
+                    };
+                    if (string.IsNullOrWhiteSpace(extension))
+                    {
+                        FileType fileType = new FileInfo(tmpPath).GetFileType();
+                        if (fileType != null)
+                            extension = "." + fileType.Extension;
+                    }
+                    extension = extension.ToLower();
+                    await WindowsPlatformConnector.ScreenshotSemaphore.WaitAsync().ConfigureAwait(false);
+                    try
+                    {
+                        int num = 1;
+                        string str1;
+                        do
                         {
-                            File.Copy(tmpPath, str1);
-                            File.SetAttributes(str1, FileAttributes.Normal);
-                            Msg($"{str1} is an unsupported format, so metadata was not saved.");
+                            string str2 = filename;
+                            if (num > 1)
+                                str2 += string.Format(" ({0})", num);
+                            str1 = Path.Combine(pictures, str2 + extension);
+                            num++;
+                        }
+                        while (File.Exists(str1));
+
+                        if (_keepOriginalScreenshotFormat)
+                        {
+                            if (extension != ".jpg" && extension != ".webp" && extension != ".png")
+                            {
+                                File.Copy(tmpPath, str1);
+                                File.SetAttributes(str1, FileAttributes.Normal);
+                                Msg($"{str1} is an unsupported format, so metadata was not saved.");
+                            }
+                            else
+                            {
+                                var extFormat = extension switch
+                                {
+                                    ".jpg" => ImageFormat.JPEG,
+                                    ".webp" => ImageFormat.WEBP,
+                                    ".png" => ImageFormat.PNG,
+                                    _ => ImageFormat.JPEG
+                                };
+                                SaveImage(__instance, tmpPath, str1, extFormat);
+                            }
                         }
                         else
                         {
-                            var extFormat = extension switch
-                            {
-                                ".jpg" => ImageFormat.JPEG,
-                                ".webp" => ImageFormat.WEBP,
-                                ".png" => ImageFormat.PNG,
-                                _ => ImageFormat.JPEG
-                            };
-                            SaveImage(__instance, tmpPath, str1, extFormat);
+                            SaveImage(__instance, tmpPath, str1, format);
                         }
                     }
-                    else
+                    catch (Exception ex)
                     {
-                        SaveImage(__instance, tmpPath, str1, format);
+                        Error("Exception saving screenshot to Windows:\n" + ex);
+                        _config?.Set(EnabledKey, false);
+                        NotificationMessage.SpawnTextMessage("[ScreenshotExtensions] Failed saving screenshot!", colorX.Red);
+                    }
+                    finally
+                    {
+                        WindowsPlatformConnector.ScreenshotSemaphore.Release();
                     }
                 }
                 catch (Exception ex)
                 {
                     Error("Exception saving screenshot to Windows:\n" + ex);
-                }
-                finally
-                {
-                    WindowsPlatformConnector.ScreenshotSemaphore.Release();
+                    _config.Set(EnabledKey, false);
+                    NotificationMessage.SpawnTextMessage("[ScreenshotExtensions] Failed saving screenshot!", colorX.Red);
                 }
             });
         }

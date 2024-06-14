@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Library</OutputType>
     <TargetFramework>net472</TargetFramework>
@@ -13,7 +13,7 @@
     <CopyToMods Condition="'$(CopyToMods)'==''">true</CopyToMods>
     <DebugSymbols Condition="'$(Configuration)'=='Release'">false</DebugSymbols>
     <DebugType Condition="'$(Configuration)'=='Release'">None</DebugType>
-    <Version>1.1.2</Version>
+    <Version>1.1.3</Version>
     <Authors>hantabaru1014</Authors>
   </PropertyGroup>
 
