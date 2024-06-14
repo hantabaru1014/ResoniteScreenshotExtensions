@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Library</OutputType>
     <TargetFramework>net472</TargetFramework>
@@ -43,6 +43,9 @@
     </Reference>
     <Reference Include="SkyFrost.Base">
       <HintPath>$(AppPath)$(AppName)_Data\Managed\SkyFrost.Base.dll</HintPath>
+    </Reference>
+    <Reference Include="SkyFrost.Base.Models">
+      <HintPath>$(AppPath)$(AppName)_Data\Managed\SkyFrost.Base.Models.dll</HintPath>
     </Reference>
     <Reference Include="MimeDetective">
       <HintPath>$(AppPath)$(AppName)_Data\Managed\MimeDetective.dll</HintPath>
