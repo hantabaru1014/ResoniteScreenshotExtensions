@@ -13,14 +13,19 @@ public static class DataTreeUtils
     {
         var engine = component.Slot.Engine;
         var tree = new DataTreeDictionary();
-        var control = new SaveControl(component.Slot, new ReferenceTranslator(), null);
+        var control = new SaveControl(component.World, component.Slot, new ReferenceTranslator(), null);
         control.SaveNonPersistent = true;
-        tree.Add("VersionNumber", engine.VersionString);
+        tree.Add("VersionNumber", Engine.Version.ToString());
         tree.Add("FeatureFlags", control.StoreFeatureFlags(engine));
+        var types = new DataTreeList();
+        tree.Add("Types", types);
         var typeVersions = new DataTreeDictionary();
         tree.Add("TypeVersions", typeVersions);
+        
         tree.Add("Component", component.Save(control));
-        control.StoreTypeVersions(typeVersions);
+        control.SaveType(component.WorkerType);
+
+        control.StoreTypeData(types, typeVersions);
         return new SavedGraph(tree);
     }
 
@@ -35,10 +40,11 @@ public static class DataTreeUtils
             control.LoadFeatureFlags(flags);
         }
         control.InitializeLoaders();
+        var typeList = dict.TryGetList("Types");
         var typeVersions = dict.TryGetDictionary("TypeVersions");
         if (typeVersions != null)
         {
-            control.LoadTypeVersions(typeVersions);
+            control.LoadTypeData(typeList, typeVersions);
         }
         var data = dict.TryGetNode("Component");
         if (data != null)
@@ -51,8 +57,10 @@ public static class DataTreeUtils
     public static string ToJson(SavedGraph graph)
     {
         var sb = new StringBuilder();
-        var writer = new JsonTextWriter(new StringWriter(sb));
-        AccessTools.Method(typeof(DataTreeConverter), "Write").Invoke(null, new object[] { graph.Root, writer });
+        using (var writer = new JsonTextWriter(new StringWriter(sb)))
+        {
+            AccessTools.Method(typeof(DataTreeConverter), "Write").Invoke(null, new object[] { graph.Root, writer });
+        }
         return sb.ToString();
     }
 
