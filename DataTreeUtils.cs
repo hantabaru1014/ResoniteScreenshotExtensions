@@ -32,7 +32,7 @@ public static class DataTreeUtils
     public static void LoadComponent(IComponent component, SavedGraph graph)
     {
         var dict = graph.Root;
-        var control = new LoadControl(component.Slot.World, new ReferenceTranslator(), default);
+        var control = new LoadControl(component.Slot.World, new ReferenceTranslator(), default, null);
         control.TryLoadVersion(dict);
         var flags = dict.TryGetDictionary("FeatureFlags");
         if (flags != null)
