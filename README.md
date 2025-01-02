@@ -14,6 +14,8 @@ Warn: Conflicts with mods that patch WindowsPlatformConnector such as [SaveExif]
 - File name date and time becomes local one
 - Selectable image formats: JPEG, WEBP, PNG
 - Save webp as lossy (default is lossless. By saving as lossy, you can get a smaller file size and alpha than jpeg with the same image quality)
+- Discord webhook integration (you can find in settings)
+![Discord webhook integration](https://github.com/user-attachments/assets/ca3c2996-0259-4ee1-a4f6-82496aabd892)
 
 XMP format
 ```xml
