@@ -13,7 +13,7 @@
     <CopyToMods Condition="'$(CopyToMods)'==''">true</CopyToMods>
     <DebugSymbols Condition="'$(Configuration)'=='Release'">false</DebugSymbols>
     <DebugType Condition="'$(Configuration)'=='Release'">None</DebugType>
-    <Version>1.1.5</Version>
+    <Version>1.2.0</Version>
     <Authors>hantabaru1014</Authors>
   </PropertyGroup>
 
@@ -55,6 +55,9 @@
     </Reference>
     <Reference Include="Newtonsoft.Json">
       <HintPath>$(AppPath)$(AppName)_Data\Managed\Newtonsoft.Json.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Net.Http">
+      <HintPath>$(AppPath)$(AppName)_Data\Managed\System.Net.Http.dll</HintPath>
     </Reference>
     <Reference Include="System.Threading.Tasks.Extensions">
       <HintPath>$(AppPath)$(AppName)_Data\Managed\System.Threading.Tasks.Extensions.dll</HintPath>

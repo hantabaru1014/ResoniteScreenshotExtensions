@@ -6,6 +6,9 @@ using MimeDetective;
 using ResoniteModLoader;
 using System;
 using Elements.Core;
+using static ResoniteScreenshotExtensions.DiscordWebhookClient;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace ResoniteScreenshotExtensions;
 
@@ -52,6 +55,36 @@ public partial class ResoniteScreenshotExtensions : ResoniteMod
                     case ImageFormat.PNG:
                         bmp.Save(dstPath, FREE_IMAGE_FORMAT.FIF_PNG, FREE_IMAGE_SAVE_FLAGS.PNG_Z_BEST_COMPRESSION);
                         break;
+                }
+            }
+
+            if (_config != null && _config.GetValue(DiscordWebhookAutoUploadKey) && (_config.GetValue(DiscordWebhookUrlKey) ?? "").Length > 0)
+            {
+                var fields = new List<EmbedField>();
+                if (_config.GetValue(DiscordWebhookEmbedLocationNameKey))
+                {
+                    fields.Add(new EmbedField("LocationName", photoMetadata.LocationName));
+                }
+                if (_config.GetValue(DiscordWebhookEmbedLocationHostKey))
+                {
+                    fields.Add(new EmbedField("LocationHost", photoMetadata.LocationHost.Target.UserName));
+                }
+                fields.Add(new EmbedField("TakenBy", photoMetadata.TakenBy.Target.UserName));
+                var unixTimestamp = (int)(photoMetadata.TimeTaken.Value.Subtract(new DateTime(1970, 1, 1))).TotalSeconds;
+                fields.Add(new EmbedField("TimeTaken", $"<t:{unixTimestamp}>"));
+                if (_config.GetValue(DiscordWebhookEmbedUsersKey))
+                {
+                    fields.Add(new EmbedField("Users", photoMetadata.UserInfos.Select(u => u.User.Target.UserName).Aggregate((acc, curr) => $"{acc}, {curr}")));
+                }
+
+                var client = new DiscordWebhookClient(_config?.GetValue(DiscordWebhookUrlKey) ?? "");
+                try
+                {
+                    _ = client.SendImageWithMetadata(srcPath, fields);
+                }
+                catch (Exception ex)
+                {
+                    Error(ex);
                 }
             }
         }
