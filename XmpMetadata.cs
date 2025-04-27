@@ -4,6 +4,9 @@ using FrooxEngine;
 using FreeImageAPI.Metadata;
 using System.Linq;
 using Elements.Core;
+using System.IO;
+using System.Text;
+using System;
 
 namespace ResoniteScreenshotExtensions;
 
@@ -13,27 +16,84 @@ public static class XmpMetadata
     internal const string thisModNamespace = "http://ns.baru.dev/resonite-ss-ext/1.0/";
     internal const string defaultXmpStr = $"<rdf:RDF xmlns:rdf=\"{rdfPrefixNamespace}\"></rdf:RDF>";
 
-    public static void UpsertPhotoMetadata(FreeImageBitmap bmp, PhotoMetadata photoMetadata)
+    // MetadataModel.GetTagArray だとunicodeで書き込んだものは取得できないので直接FreeImageAPIを使う
+    public static string? LoadXmp(FIBITMAP dib)
     {
-        var fiMeta = bmp.Metadata;
-        fiMeta.HideEmptyModels = false;
-        var xmpMeta = (MDM_XMP)fiMeta[FREE_IMAGE_MDMODEL.FIMD_XMP];
+        FITAG tag;
+        var mdhandle = FreeImage.FindFirstMetadata(FREE_IMAGE_MDMODEL.FIMD_XMP, dib, out tag);
+        if (mdhandle.IsNull)
+        {
+            return null;
+        }
+        var metaTag = new MetadataTag(tag, dib);
+        if (metaTag == null)
+        {
+            return null;
+        }
+        return Encoding.UTF8.GetString(metaTag.Value as byte[]);
+    }
+
+    public static bool SetXmp(FIBITMAP dib, string xml)
+    {
+        var tag = new MetadataTag(FREE_IMAGE_MDMODEL.FIMD_XMP);
+        if (!tag.SetValue(Encoding.UTF8.GetBytes(xml), FREE_IMAGE_MDTYPE.FIDT_BYTE)) return false;
+        return FreeImage.SetMetadata(FREE_IMAGE_MDMODEL.FIMD_XMP, dib, "XMLPacket", tag);
+    }
+
+    /// <summary>
+    /// MDM_XMP だと非ASCII文字が化けるので、無理やりutf8で書き込むバージョンのMDM_XMP
+    /// </summary>
+    public class MDM_XMP_Unicode : MetadataModel
+    {
+        public override FREE_IMAGE_MDMODEL Model => FREE_IMAGE_MDMODEL.FIMD_XMP;
+
+        public string Xml
+        {
+            get
+            {
+                return LoadXmp(dib) ?? "";
+            }
+            set
+            {
+                var bytes = Encoding.UTF8.GetBytes(value);
+                SetTagValue("XMLPacket", bytes);
+            }
+        }
+
+        public MDM_XMP_Unicode(FIBITMAP dib)
+        : base(dib)
+        {
+        }
+    }
+
+    public static void UpsertPhotoMetadata(FIBITMAP dib, PhotoMetadata photoMetadata)
+    {
+        var xmpMeta = new MDM_XMP_Unicode(dib);
 
         var xmpRoot = ParseOrDefaultXmp(xmpMeta.Xml);
         var content = DataTreeUtils.ToJson(DataTreeUtils.SaveComponent(photoMetadata));
         AddRdfDescription(xmpRoot, content);
 
-        xmpMeta.Xml = xmpRoot.ToString(SaveOptions.DisableFormatting);
+        var result = xmpRoot.ToString(SaveOptions.DisableFormatting);
+        xmpMeta.Xml = result;
+        ResoniteScreenshotExtensions.Msg(result);
+    }
+
+    public static void SetXMP(FIBITMAP dib, string xml)
+    {
+        var xmpMeta = new MDM_XMP_Unicode(dib);
+        xmpMeta.Xml = xml;
     }
 
     public static bool TryLoadPhotoMetadataSavedGraph(string filePath, out SavedGraph? savedGraph)
     {
         try
         {
-            using (var bmp = new FreeImageBitmap(filePath))
-            {
-                return TryLoadPhotoMetadataSavedGraph(bmp, out savedGraph);
-            }
+            var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            var dib = FreeImage.LoadFromStream(stream);
+            stream.Close();
+
+            return TryLoadPhotoMetadataSavedGraph(dib, out savedGraph);
         }
         catch
         {
@@ -42,12 +102,13 @@ public static class XmpMetadata
         return false;
     }
 
-    public static bool TryLoadPhotoMetadataSavedGraph(FreeImageBitmap bmp, out SavedGraph? savedGraph)
+    public static bool TryLoadPhotoMetadataSavedGraph(FIBITMAP dib, out SavedGraph? savedGraph)
     {
         try
         {
-            var xmpMeta = (MDM_XMP)bmp.Metadata[FREE_IMAGE_MDMODEL.FIMD_XMP];
+            var xmpMeta = new MDM_XMP_Unicode(dib);
             var rawXml = xmpMeta.Xml;
+            ResoniteScreenshotExtensions.Msg($"rawXml: '{rawXml}'");
             if (!string.IsNullOrEmpty(rawXml))
             {
                 if (TryLoadContentJson(XElement.Parse(rawXml), out var json))
@@ -63,24 +124,27 @@ public static class XmpMetadata
             savedGraph = null;
             return false;
         }
-        catch
+        catch (Exception ex)
         {
             savedGraph = null;
+            throw ex;
         }
         return false;
     }
 
-    static void AddRdfDescription(XElement xmpRoot, string contentJson)
+    public static void AddRdfDescription(XElement xmpRoot, string contentJson)
     {
         var rdfNS = XNamespace.Get(rdfPrefixNamespace);
         var rdfName = rdfNS + "RDF";
         var rdf = xmpRoot.Elements().Count(e => e.Name == rdfName) == 1 ? xmpRoot.Element(rdfName) : xmpRoot;
 
         var description = new XElement(rdfNS + "Description");
-        description.SetAttributeValue(rdfNS + "about", "FrooxEngine PhotoMetadata");
+        description.SetAttributeValue(rdfNS + "about", "ResoniteScreenshotExtensions");
         var ns = XNamespace.Get(thisModNamespace);
         description.SetAttributeValue(XNamespace.Xmlns + "resonite-ss-ext", ns);
+
         description.SetAttributeValue(ns + "PhotoMetadataJson", contentJson);
+        description.SetAttributeValue(ns + "WorldName", "日本語テスト！ABC");
 
         rdf.Add(description);
     }
@@ -104,7 +168,7 @@ public static class XmpMetadata
         return false;
     }
 
-    static XElement ParseOrDefaultXmp(string xmlStr)
+    public static XElement ParseOrDefaultXmp(string xmlStr)
     {
         if (string.IsNullOrEmpty(xmlStr))
         {

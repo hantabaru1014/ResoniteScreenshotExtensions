@@ -21,11 +21,6 @@ public partial class ResoniteScreenshotExtensions : ResoniteMod
         {
             using (var bmp = new FreeImageBitmap(srcPath))
             {
-                if (_config?.GetValue(SavePhotoMetadataToFileKey) ?? false)
-                {
-                    XmpMetadata.UpsertPhotoMetadata(bmp, photoMetadata);
-                }
-
                 // EnsureNonHDR
                 var imgType = bmp.ImageType;
                 if (imgType == FREE_IMAGE_TYPE.FIT_RGBF || imgType == FREE_IMAGE_TYPE.FIT_RGBAF)
@@ -54,6 +49,29 @@ public partial class ResoniteScreenshotExtensions : ResoniteMod
                         break;
                     case ImageFormat.PNG:
                         bmp.Save(dstPath, FREE_IMAGE_FORMAT.FIF_PNG, FREE_IMAGE_SAVE_FLAGS.PNG_Z_BEST_COMPRESSION);
+                        break;
+                }
+            }
+
+            if (_config?.GetValue(SavePhotoMetadataToFileKey) ?? false)
+            {
+                var stream = new FileStream(dstPath, FileMode.Open, FileAccess.Read, FileShare.Read);
+                var dib = FreeImage.LoadFromStream(stream);
+                stream.Close();
+
+                XmpMetadata.UpsertPhotoMetadata(dib, photoMetadata);
+
+                switch (format)
+                {
+                    case ImageFormat.JPEG:
+                        FreeImage.Save(FREE_IMAGE_FORMAT.FIF_JPEG, dib, dstPath, FREE_IMAGE_SAVE_FLAGS.JPEG_QUALITYSUPERB);
+                        break;
+                    case ImageFormat.WEBP:
+                        FREE_IMAGE_SAVE_FLAGS quality = (_config?.GetValue(LossyWebpKey) ?? false) ? (FREE_IMAGE_SAVE_FLAGS)_config.GetValue(LossyWebpQualityKey) : FREE_IMAGE_SAVE_FLAGS.WEBP_LOSSLESS;
+                        FreeImage.Save(FreeImage.GetFIFFromFormat("webp"), dib, dstPath, quality);
+                        break;
+                    case ImageFormat.PNG:
+                        FreeImage.Save(FREE_IMAGE_FORMAT.FIF_PNG, dib, dstPath, FREE_IMAGE_SAVE_FLAGS.PNG_Z_BEST_COMPRESSION);
                         break;
                 }
             }
