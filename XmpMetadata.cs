@@ -272,7 +272,7 @@ public static class XmpMetadata
         var xmpRoot = ParseOrDefaultXmp(xmpMeta.Xml);
         AddRdfDescription(xmpRoot, photoMetadata);
 
-        xmpMeta.Xml = xmpRoot.ToString(SaveOptions.DisableFormatting);
+        xmpMeta.Xml = "<?xpacket begin=\"\ufeff\"?>" + xmpRoot.ToString(SaveOptions.DisableFormatting) + "<?xpacket end=\"w\"?>";
     }
 
     static bool TryLoadV1Json(XElement xmpRoot, out string json)
@@ -321,6 +321,19 @@ public static class XmpMetadata
         return false;
     }
 
+    static string UnpackXPacket(string xmpData)
+    {
+        if (string.IsNullOrEmpty(xmpData))
+            return string.Empty;
+
+        var match = Regex.Match(xmpData, @"\<\?xpacket begin=""\ufeff"".*\?\>(.*)\<\?xpacket end=""w""\?\>", RegexOptions.Singleline);
+
+        if (match.Success && match.Groups.Count > 1)
+            return match.Groups[1].Value.Trim();
+
+        return xmpData;
+    }
+
     public static bool TryLoadPhotoMetadata(string filePath, Slot targetSlot)
     {
         try
@@ -328,7 +341,7 @@ public static class XmpMetadata
             using (var bmp = new FreeImageBitmap(filePath))
             {
                 var xmpMeta = (MDM_XMP)bmp.Metadata[FREE_IMAGE_MDMODEL.FIMD_XMP];
-                var rawXml = xmpMeta.Xml;
+                var rawXml = UnpackXPacket(xmpMeta.Xml);
                 if (!string.IsNullOrEmpty(rawXml))
                 {
                     var xmpRoot = XElement.Parse(rawXml);
