@@ -47,16 +47,8 @@ public partial class ResoniteScreenshotExtensions : ResoniteMod
         static void LoadMetadata(Slot targetSlot, ImportItem item, bool skip)
         {
             if (skip || !(_config?.GetValue(LoadPhotoMetadataFromFileKey) ?? false) || string.IsNullOrEmpty(item.filePath)) return;
-            if (XmpMetadata.TryLoadPhotoMetadataSavedGraph(item.filePath, out var graph))
+            if (XmpMetadata.TryLoadPhotoMetadata(item.filePath, targetSlot))
             {
-                if (graph == null) return;
-                targetSlot.RunSynchronously(() =>
-                {
-                    targetSlot.AttachComponent<PhotoMetadata>(beforeAttach: c =>
-                    {
-                        DataTreeUtils.LoadComponent(c, graph);
-                    });
-                });
                 Msg("Loaded PhotoMetadata from XMP");
             }
         }
