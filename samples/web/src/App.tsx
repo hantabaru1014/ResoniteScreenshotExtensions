@@ -1,4 +1,4 @@
-import { ImageFrame } from "@/components/imageFrame";
+import { ImageFrame } from "@/components/ImageFrame";
 import { MetadataDisplayPanel } from "@/components/MetadataDisplayPanel";
 import { loadXMPMetadata } from "@/lib/xmp";
 import { useState } from "react";
