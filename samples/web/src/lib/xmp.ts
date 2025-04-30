@@ -181,23 +181,21 @@ export const parseMetadata = (xml: string) => {
   const parser = new XMLParser({
     ignoreAttributes: false,
     attributeNamePrefix: "",
-    isArray: (tagName) => ["rdf:RDF", "rse:UserInfos"].includes(tagName),
+    isArray: (tagName) =>
+      ["rdf:Description", "rse:UserInfos"].includes(tagName),
     parseAttributeValue: true,
   });
   const xmpData = parser.parse(xml);
   if (!xmpData?.["rdf:RDF"]) {
     throw new Error("XMP data not found");
   }
-  const modDescription = Array.isArray(xmpData["rdf:RDF"])
-    ? xmpData["rdf:RDF"]
-        .filter(
-          (item) =>
-            item["rdf:Description"]?.["xmlns:rse"] != null ||
-            item["rdf:Description"]?.["xmlns:resonite-ss-ext"] != null,
-        )
-        .map((item) => item["rdf:Description"])
+  const modDescription = Array.isArray(xmpData["rdf:RDF"]?.["rdf:Description"])
+    ? xmpData["rdf:RDF"]?.["rdf:Description"].filter(
+        (item) =>
+          item["xmlns:rse"] != null || item["xmlns:resonite-ss-ext"] != null,
+      )
     : [];
-  if (modDescription.length !== 1) {
+  if (modDescription.length === 0) {
     throw new Error("Invalid XMP format");
   }
   const obj = modDescription[0];
