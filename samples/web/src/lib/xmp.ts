@@ -1,11 +1,7 @@
 /* eslint @typescript-eslint/no-explicit-any: 0 */
 
 import { XMLParser } from "fast-xml-parser";
-import {
-  float3,
-  floatQ,
-  Metadata,
-} from "./metadata";
+import { float3, floatQ, Metadata } from "./metadata";
 
 const unescapeUnicode = (str: string) => {
   return str

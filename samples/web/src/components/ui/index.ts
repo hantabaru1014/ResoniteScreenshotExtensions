@@ -3,3 +3,4 @@ export * from "./aspect-ratio";
 export * from "./table";
 export * from "./resizable";
 export * from "./sonner";
+export * from "./avatar";
