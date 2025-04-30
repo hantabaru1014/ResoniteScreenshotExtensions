@@ -17,6 +17,40 @@ public partial class ResoniteScreenshotExtensions : ResoniteMod
     [HarmonyPatch(typeof(PhotoMetadata))]
     class PhotoMetadata_Patch
     {
+        const string MENU_ITEM_TAG = "RSE_POST_TO_DISCORD";
+
+        static void PostToDiscord(Metadata metadata, string filePath)
+        {
+            if (_config == null || (_config.GetValue(DiscordWebhookUrlKey) ?? "").Length == 0) return;
+
+            var fields = new List<EmbedField>();
+            if (_config.GetValue(DiscordWebhookEmbedLocationNameKey))
+            {
+                fields.Add(new EmbedField("LocationName", metadata.LocationName));
+            }
+            if (_config.GetValue(DiscordWebhookEmbedLocationHostKey))
+            {
+                fields.Add(new EmbedField("LocationHost", metadata.LocationHost.Name ?? metadata.LocationHost.Id));
+            }
+            fields.Add(new EmbedField("TakenBy", metadata.TakenBy.Name ?? metadata.TakenBy.Id));
+            var unixTimestamp = (int)(metadata.TimeTaken.Subtract(new DateTime(1970, 1, 1))).TotalSeconds;
+            fields.Add(new EmbedField("TimeTaken", $"<t:{unixTimestamp}>"));
+            if (_config.GetValue(DiscordWebhookEmbedUsersKey))
+            {
+                fields.Add(new EmbedField("Users", metadata.UserInfos.Select(u => u.User.Name ?? u.User.Id).Aggregate((acc, curr) => $"{acc}, {curr}")));
+            }
+
+            var client = new DiscordWebhookClient(_config?.GetValue(DiscordWebhookUrlKey) ?? "");
+            try
+            {
+                _ = client.SendImageWithMetadata(filePath, fields);
+            }
+            catch (Exception ex)
+            {
+                Error(ex);
+            }
+        }
+
         static void SaveImage(PhotoMetadata photoMetadata, string srcPath, string dstPath, ImageFormat format)
         {
             using (var bmp = new FreeImageBitmap(srcPath))
@@ -60,32 +94,7 @@ public partial class ResoniteScreenshotExtensions : ResoniteMod
 
             if (_config != null && _config.GetValue(DiscordWebhookAutoUploadKey) && (_config.GetValue(DiscordWebhookUrlKey) ?? "").Length > 0)
             {
-                var fields = new List<EmbedField>();
-                if (_config.GetValue(DiscordWebhookEmbedLocationNameKey))
-                {
-                    fields.Add(new EmbedField("LocationName", photoMetadata.LocationName));
-                }
-                if (_config.GetValue(DiscordWebhookEmbedLocationHostKey))
-                {
-                    fields.Add(new EmbedField("LocationHost", photoMetadata.LocationHost.Target.UserName));
-                }
-                fields.Add(new EmbedField("TakenBy", photoMetadata.TakenBy.Target.UserName));
-                var unixTimestamp = (int)(photoMetadata.TimeTaken.Value.Subtract(new DateTime(1970, 1, 1))).TotalSeconds;
-                fields.Add(new EmbedField("TimeTaken", $"<t:{unixTimestamp}>"));
-                if (_config.GetValue(DiscordWebhookEmbedUsersKey))
-                {
-                    fields.Add(new EmbedField("Users", photoMetadata.UserInfos.Select(u => u.User.Target.UserName).Aggregate((acc, curr) => $"{acc}, {curr}")));
-                }
-
-                var client = new DiscordWebhookClient(_config?.GetValue(DiscordWebhookUrlKey) ?? "");
-                try
-                {
-                    _ = client.SendImageWithMetadata(srcPath, fields);
-                }
-                catch (Exception ex)
-                {
-                    Error(ex);
-                }
+                PostToDiscord(new Metadata(photoMetadata), srcPath);
             }
         }
 
@@ -192,6 +201,37 @@ public partial class ResoniteScreenshotExtensions : ResoniteMod
                     NotificationMessage.SpawnTextMessage("[ScreenshotExtensions] Failed saving screenshot!", colorX.Red);
                 }
             });
+        }
+
+        [HarmonyPostfix]
+        [HarmonyPatch(nameof(PhotoMetadata.GenerateMenuItems))]
+        static void GenerateMenuItems_Postfix(PhotoMetadata __instance, ContextMenu menu)
+        {
+            if (!(_config?.GetValue(DiscordWebhookGenerateMenuKey) ?? false) || (_config.GetValue(DiscordWebhookUrlKey) ?? "").Length == 0) return;
+            if (!__instance.Enabled) return;
+
+            var item = menu.Slot.GetComponentInChildren<ContextMenuItem>((i) => i.Slot.Tag == MENU_ITEM_TAG);
+            if (item == null)
+            {
+                item = menu.AddItem("Post to Discord", OfficialAssets.Graphics.Icons.General.ExportScreenshot, null);
+                item.Slot.Tag = MENU_ITEM_TAG;
+            }
+            item.Button.LocalPressed += (button, eventData) =>
+            {
+                Msg("Posting to Discord...");
+                __instance.StartGlobalTask(async () =>
+                {
+                    var tex = __instance.Slot.GetComponent<StaticTexture2D>();
+                    var url = tex?.URL.Value;
+                    if (url is null) return;
+
+                    await new ToBackground();
+                    var tmpPath = await __instance.Engine.AssetManager.GatherAssetFile(url, 100f);
+                    if (tmpPath is null) return;
+
+                    PostToDiscord(new Metadata(__instance), tmpPath);
+                });
+            };
         }
     }
 }
