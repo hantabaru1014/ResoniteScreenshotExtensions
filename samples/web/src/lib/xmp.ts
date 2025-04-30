@@ -3,11 +3,8 @@
 import { XMLParser } from "fast-xml-parser";
 import {
   float3,
+  floatQ,
   Metadata,
-  MetadataUser,
-  MetadataUserInfo,
-  SessionAccessLevel,
-  StereoLayout,
 } from "./metadata";
 
 const unescapeUnicode = (str: string) => {
@@ -75,106 +72,73 @@ const parseComponentJson = (json: string) => {
 };
 
 const parseXML = (xmlObj: any) => {
-  const parseUser = (obj: any) => {
-    const prefix = "rse:U-";
-    return Object.fromEntries(
-      Object.entries(obj)
-        .filter((e) => e[0].startsWith(prefix))
-        .map((e) => {
-          const key = e[0].substring(prefix.length);
-          const newKey = key.charAt(0).toLowerCase() + key.slice(1);
-          return [newKey, e[1]];
-        }),
-    ) as MetadataUser;
-  };
-  const parseFloat3 = (str: string) => {
+  const parseFloat3 = (str: string | undefined) => {
+    if (str === undefined) {
+      return [0, 0, 0] as float3;
+    }
     const matched = str.match(/^\[(.+); (.+); (.+)\]$/);
     if (!matched) {
       throw new Error("Invalid format");
     }
     return [matched[1], matched[2], matched[3]].map(Number) as float3;
   };
-  const parseFloatQ = (str: string) => {
+  const parseFloatQ = (str: string | undefined) => {
+    if (str === undefined) {
+      return [0, 0, 0, 1] as floatQ;
+    }
     const matched = str.match(/^\[(.+); (.+); (.+); (.+)\]$/);
     if (!matched) {
       throw new Error("Invalid format");
     }
     return [matched[1], matched[2], matched[3], matched[4]].map(
       Number,
-    ) as float3;
-  };
-  const parseUserInfo = (obj: any) => {
-    const user = parseUser(obj);
-    const prefix = "rse:UI-";
-    const info = Object.fromEntries(
-      Object.entries(obj)
-        .filter((e) => e[0].startsWith(prefix))
-        .map((e) => {
-          const key = e[0].substring(prefix.length);
-          const newKey = key.charAt(0).toLowerCase() + key.slice(1);
-
-          let newValue = e[1];
-          if (newKey === "headPosition") {
-            newValue = parseFloat3(e[1] as string);
-          }
-          if (newKey === "headOrientation") {
-            newValue = parseFloatQ(e[1] as string);
-          }
-          if (newKey === "sessionJoinTimestamp") {
-            newValue = new Date(e[1] as string);
-          }
-
-          return [newKey, newValue];
-        }),
-    );
-    info["user"] = user;
-
-    return info as MetadataUserInfo;
-  };
-  const parseMetadata = (obj: any) => {
-    const prefix = "rse:";
-    return Object.fromEntries(
-      Object.entries(obj)
-        .filter((e) => e[0].startsWith(prefix))
-        .map((e) => {
-          const key = e[0].substring(prefix.length);
-          const newKey = key.charAt(0).toLowerCase() + key.slice(1);
-
-          let newValue = e[1];
-          if (newKey === "takenGlobalPosition") {
-            newValue = parseFloat3(e[1] as string);
-          }
-          if (newKey === "takenGlobalRotation") {
-            newValue = parseFloatQ(e[1] as string);
-          }
-          if (newKey === "takenGlobalScale") {
-            newValue = parseFloat3(e[1] as string);
-          }
-          if (newKey === "timeTaken") {
-            newValue = new Date(e[1] as string);
-          }
-          if (newKey === "locationHost") {
-            newValue = parseUser(e[1]);
-          }
-          if (newKey === "takenBy") {
-            newValue = parseUser(e[1]);
-          }
-          if (newKey === "userInfos" && Array.isArray(e[1])) {
-            newValue = e[1].map((o: any) => parseUserInfo(o["rse:UserInfo"]));
-          }
-          if (newKey === "locationAccessLevel") {
-            newValue = e[1] as keyof typeof SessionAccessLevel;
-          }
-          if (newKey === "stereoLayout") {
-            newValue = e[1] as keyof typeof StereoLayout;
-          }
-
-          return [newKey, newValue];
-        }),
-    ) as Metadata;
+    ) as floatQ;
   };
 
-  return parseMetadata(xmlObj);
+  const metadata: Metadata = {
+    locationName: xmlObj["rse:LocationName"],
+    locationURL: xmlObj["rse:LocationURL"],
+    locationHost: {
+      id: xmlObj["rse:LocationHost"]["rse:U-Id"],
+      name: xmlObj["rse:LocationHost"]["rse:U-Name"],
+      machineId: xmlObj["rse:LocationHost"]["rse:U-MachineId"],
+    },
+    locationAccessLevel: xmlObj["rse:LocationAccessLevel"],
+    locationHiddenFromListing: xmlObj["rse:LocationHiddenFromListing"],
+    timeTaken: new Date(xmlObj["rse:TimeTaken"]),
+    takenBy: {
+      id: xmlObj["rse:TakenBy"]["rse:U-Id"],
+      name: xmlObj["rse:TakenBy"]["rse:U-Name"],
+      machineId: xmlObj["rse:TakenBy"]["rse:U-MachineId"],
+    },
+    takenGlobalPosition: parseFloat3(xmlObj["rse:TakenGlobalPosition"]),
+    takenGlobalRotation: parseFloatQ(xmlObj["rse:TakenGlobalRotation"]),
+    takenGlobalScale: parseFloat3(xmlObj["rse:TakenGlobalScale"]),
+    appVersion: xmlObj["rse:AppVersion"],
+    userInfos: xmlObj["rse:UserInfos"].map((o: any) => {
+      const info = o["rse:UserInfo"];
+
+      return {
+        user: {
+          id: info["rse:U-Id"],
+          name: info["rse:U-Name"],
+          machineId: info["rse:U-MachineId"],
+        },
+        isInVR: info["rse:UI-IsInVR"],
+        isPresent: info["rse:UI-IsPresent"],
+        headPosition: parseFloat3(info["rse:UI-HeadPosition"]),
+        headOrientation: parseFloatQ(info["rse:UI-HeadOrientation"]),
+        sessionJoinTimestamp: new Date(info["rse:UI-SessionJoinTimestamp"]),
+      };
+    }),
+    cameraManufacturer: xmlObj["rse:CameraManufacturer"],
+    cameraModel: xmlObj["rse:CameraModel"],
+    cameraFOV: xmlObj["rse:CameraFOV"],
+    is360: xmlObj["rse:Is360"],
+    stereoLayout: xmlObj["rse:StereoLayout"],
+  };
+
+  return metadata;
 };
 
 export const parseMetadata = (xml: string) => {
