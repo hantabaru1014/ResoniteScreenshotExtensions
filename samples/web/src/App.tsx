@@ -10,8 +10,11 @@ import {
   ResizablePanelGroup,
   Toaster,
 } from "@/components/ui";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
-function App() {
+const queryClient = new QueryClient();
+
+function Viewer() {
   const [metadata, setMetadata] = useState<Metadata | undefined>();
 
   const handleImageUpload = async (file: File) => {
@@ -47,7 +50,8 @@ function App() {
           You can check the metadata embedded in screenshots saved with
           ResoniteScreenshotExtensions.
           <br />
-          All data is processed in your browser and is not sent to any server.
+          Your image data is processed in your browser and is not sent to any
+          server.
         </p>
         <ResizablePanelGroup direction="horizontal">
           <ResizablePanel defaultSize={60} className="pr-2">
@@ -66,6 +70,14 @@ function App() {
         <Toaster position="bottom-left" />
       </main>
     </>
+  );
+}
+
+function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <Viewer />
+    </QueryClientProvider>
   );
 }
 

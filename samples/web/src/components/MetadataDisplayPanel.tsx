@@ -9,7 +9,13 @@ import {
 } from "@/components/ui";
 import { UserLabel } from "./UserLabel";
 
-function MetadataDisplayPanel({ value }: { value?: Metadata }) {
+function MetadataTable({
+  value,
+  hiddenKeys,
+}: {
+  value?: Metadata;
+  hiddenKeys?: string[];
+}) {
   const renderValue = (key: keyof Metadata, value: Metadata[typeof key]) => {
     switch (key) {
       case "locationHost":
@@ -27,32 +33,36 @@ function MetadataDisplayPanel({ value }: { value?: Metadata }) {
   };
 
   return (
-    <div>
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Key</TableHead>
-            <TableHead>Value</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {value &&
-            Object.entries(value)
-              .filter((e) => e[0] !== "userInfos")
-              .map((item) => {
-                const [key, val] = item;
-                return (
-                  <TableRow key={key}>
-                    <TableCell>{key}</TableCell>
-                    <TableCell>
-                      {renderValue(key as keyof Metadata, val)}
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-        </TableBody>
-      </Table>
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Key</TableHead>
+          <TableHead>Value</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {value &&
+          Object.entries(value)
+            .filter((e) => !hiddenKeys || !hiddenKeys.includes(e[0]))
+            .map((item) => {
+              const [key, val] = item;
+              return (
+                <TableRow key={key}>
+                  <TableCell>{key}</TableCell>
+                  <TableCell>
+                    {renderValue(key as keyof Metadata, val)}
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+      </TableBody>
+    </Table>
+  );
+}
 
+function UsersTable({ value }: { value?: Metadata }) {
+  return (
+    <>
       <span>Users</span>
       <Table>
         <TableHeader>
@@ -86,6 +96,15 @@ function MetadataDisplayPanel({ value }: { value?: Metadata }) {
           })}
         </TableBody>
       </Table>
+    </>
+  );
+}
+
+function MetadataDisplayPanel({ value }: { value?: Metadata }) {
+  return (
+    <div>
+      <MetadataTable value={value} hiddenKeys={["userInfos"]} />
+      {value && <UsersTable value={value} />}
     </div>
   );
 }
