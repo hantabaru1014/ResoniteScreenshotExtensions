@@ -18,6 +18,7 @@ public partial class ResoniteScreenshotExtensions : ResoniteMod
     class PhotoMetadata_Patch
     {
         const string MENU_ITEM_TAG = "RSE_POST_TO_DISCORD";
+        static readonly Uri DISCORD_ICON_URI = new Uri("resdb:///f6c1a66250d366d213789faefab59a9ec6ac6334e6c4be0af254680c148810dc.png");
 
         static void PostToDiscord(Metadata metadata, string filePath)
         {
@@ -43,7 +44,24 @@ public partial class ResoniteScreenshotExtensions : ResoniteMod
             var client = new DiscordWebhookClient(_config?.GetValue(DiscordWebhookUrlKey) ?? "");
             try
             {
-                _ = client.SendImageWithMetadata(filePath, fields);
+                _ = client.SendImageWithMetadata(filePath, fields).ContinueWith(t =>
+                {
+                    if (t.IsFaulted)
+                    {
+                        Error("Failed to send image to Discord: " + t.Exception);
+                    }
+                    else
+                    {
+                        if (t.Result)
+                        {
+                            Msg("Image sent to Discord successfully.");
+                        }
+                        else
+                        {
+                            Error("Failed to send image to Discord");
+                        }
+                    }
+                });
             }
             catch (Exception ex)
             {
@@ -213,11 +231,12 @@ public partial class ResoniteScreenshotExtensions : ResoniteMod
             var item = menu.Slot.GetComponentInChildren<ContextMenuItem>((i) => i.Slot.Tag == MENU_ITEM_TAG);
             if (item == null)
             {
-                item = menu.AddItem("Post to Discord", OfficialAssets.Graphics.Icons.General.ExportScreenshot, null);
+                item = menu.AddItem("Post to Discord", DISCORD_ICON_URI, null);
                 item.Slot.Tag = MENU_ITEM_TAG;
             }
             item.Button.LocalPressed += (button, eventData) =>
             {
+                __instance.LocalUser.CloseContextMenu(null);
                 Msg("Posting to Discord...");
                 __instance.StartGlobalTask(async () =>
                 {

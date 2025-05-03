@@ -4,6 +4,7 @@ using System.Net.Http.Headers;
 using System.IO;
 using System.Collections.Generic;
 using System.Linq;
+using MimeDetective;
 
 namespace ResoniteScreenshotExtensions;
 
@@ -20,24 +21,29 @@ public class DiscordWebhookClient
 
     public async Task<bool> SendImage(string srcPath, string? payloadJson = null)
     {
-        var fileContent = new StreamContent(File.OpenRead(srcPath));
-        var extension = Path.GetExtension(srcPath).Replace(".", "");
-        fileContent.Headers.ContentType = new MediaTypeHeaderValue($"image/{extension}");
-        fileContent.Headers.ContentDisposition = new ContentDispositionHeaderValue("attachment") {
-            FileName = $"image.{extension}",
-        };
-
-        var request = new HttpRequestMessage(HttpMethod.Post, _webhookUrl);
-        var form = new MultipartFormDataContent();
-        form.Add(fileContent, "file");
-        if (payloadJson != null)
+        using (var fileStream = File.OpenRead(srcPath))
         {
-            form.Add(new StringContent(payloadJson), "payload_json");
-        }
-        request.Content = form;
+            var fileType = fileStream.GetFileType();
+            fileStream.Seek(0, SeekOrigin.Begin);
+            var fileContent = new StreamContent(fileStream);
+            fileContent.Headers.ContentType = new MediaTypeHeaderValue(fileType.Mime);
+            fileContent.Headers.ContentDisposition = new ContentDispositionHeaderValue("attachment")
+            {
+                FileName = $"image.{fileType.Extension}",
+            };
 
-        var response = await _client.SendAsync(request);
-        return response.IsSuccessStatusCode;
+            var request = new HttpRequestMessage(HttpMethod.Post, _webhookUrl);
+            var form = new MultipartFormDataContent();
+            form.Add(fileContent, "file");
+            if (payloadJson != null)
+            {
+                form.Add(new StringContent(payloadJson), "payload_json");
+            }
+            request.Content = form;
+
+            var response = await _client.SendAsync(request);
+            return response.IsSuccessStatusCode;
+        }
     }
 
     public class EmbedField
