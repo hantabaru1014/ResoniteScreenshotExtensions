@@ -39,7 +39,7 @@ public partial class ResoniteScreenshotExtensions : ResoniteMod
         new ModConfigurationKey<bool>("DiscordWebhookGenerateMenu", "└ Generate menu item for post to Discord", () => false);
     [AutoRegisterConfigKey]
     public static readonly ModConfigurationKey<bool> DiscordWebhookAutoUploadKey =
-        new ModConfigurationKey<bool>("DiscordWebhookAutoUpload", "└ Auto upload when shot", () => false);
+        new ModConfigurationKey<bool>("DiscordWebhookAutoUpload", "└ Auto upload when save screenshot", () => false);
     [AutoRegisterConfigKey]
     public static readonly ModConfigurationKey<bool> DiscordWebhookEmbedLocationNameKey =
         new ModConfigurationKey<bool>("DiscordWebhookEmbedLocationName", "└ Embed LocationName", () => true);
