@@ -7,7 +7,7 @@ public partial class ResoniteScreenshotExtensions : ResoniteMod
 {
     public override string Name => "ResoniteScreenshotExtensions";
     public override string Author => "hantabaru1014";
-    public override string Version => "2.0.1";
+    public override string Version => "2.0.2";
     public override string Link => "https://github.com/hantabaru1014/ResoniteScreenshotExtensions";
 
     [AutoRegisterConfigKey]
