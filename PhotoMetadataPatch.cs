@@ -35,7 +35,7 @@ public partial class ResoniteScreenshotExtensions : ResoniteMod
                 fields.Add(new EmbedField("LocationHost", SanitizeText(metadata.LocationHost.Name ?? metadata.LocationHost.Id)));
             }
             fields.Add(new EmbedField("TakenBy", SanitizeText(metadata.TakenBy.Name ?? metadata.TakenBy.Id)));
-            var unixTimestamp = (int)(metadata.TimeTaken.Subtract(new DateTime(1970, 1, 1))).TotalSeconds;
+            var unixTimestamp = (int)metadata.TimeTaken.ToUniversalTime().Subtract(new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc)).TotalSeconds;
             fields.Add(new EmbedField("TimeTaken", $"<t:{unixTimestamp}>"));
             if (_config.GetValue(DiscordWebhookEmbedUsersKey))
             {
