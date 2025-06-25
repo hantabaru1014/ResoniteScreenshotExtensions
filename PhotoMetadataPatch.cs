@@ -1,14 +1,15 @@
-﻿using FreeImageAPI;
+﻿using Elements.Assets;
+using Elements.Core;
+using FreeImageAPI;
 using FrooxEngine;
 using HarmonyLib;
-using System.IO;
 using MimeDetective;
 using ResoniteModLoader;
 using System;
-using Elements.Core;
-using static ResoniteScreenshotExtensions.DiscordWebhookClient;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using static ResoniteScreenshotExtensions.DiscordWebhookClient;
 
 namespace ResoniteScreenshotExtensions;
 
@@ -27,18 +28,18 @@ public partial class ResoniteScreenshotExtensions : ResoniteMod
             var fields = new List<EmbedField>();
             if (_config.GetValue(DiscordWebhookEmbedLocationNameKey))
             {
-                fields.Add(new EmbedField("LocationName", metadata.LocationName));
+                fields.Add(new EmbedField("LocationName", SanitizeText(metadata.LocationName)));
             }
             if (_config.GetValue(DiscordWebhookEmbedLocationHostKey))
             {
-                fields.Add(new EmbedField("LocationHost", metadata.LocationHost.Name ?? metadata.LocationHost.Id));
+                fields.Add(new EmbedField("LocationHost", SanitizeText(metadata.LocationHost.Name ?? metadata.LocationHost.Id)));
             }
-            fields.Add(new EmbedField("TakenBy", metadata.TakenBy.Name ?? metadata.TakenBy.Id));
+            fields.Add(new EmbedField("TakenBy", SanitizeText(metadata.TakenBy.Name ?? metadata.TakenBy.Id)));
             var unixTimestamp = (int)(metadata.TimeTaken.Subtract(new DateTime(1970, 1, 1))).TotalSeconds;
             fields.Add(new EmbedField("TimeTaken", $"<t:{unixTimestamp}>"));
             if (_config.GetValue(DiscordWebhookEmbedUsersKey))
             {
-                fields.Add(new EmbedField("Users", metadata.UserInfos.Select(u => u.User.Name ?? u.User.Id).Aggregate((acc, curr) => $"{acc}, {curr}")));
+                fields.Add(new EmbedField("Users", metadata.UserInfos.Select(u => SanitizeText(u.User.Name ?? u.User.Id)).Aggregate((acc, curr) => $"{acc}, {curr}")));
             }
 
             var client = new DiscordWebhookClient(_config?.GetValue(DiscordWebhookUrlKey) ?? "");
@@ -251,6 +252,11 @@ public partial class ResoniteScreenshotExtensions : ResoniteMod
                     PostToDiscord(new Metadata(__instance), tmpPath);
                 });
             };
+        }
+
+        private static string SanitizeText(string text)
+        {
+            return new StringRenderTree(text).GetRawString().Replace("\\", "");
         }
     }
 }
