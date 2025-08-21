@@ -2,19 +2,15 @@
 
 A [ResoniteModLoader](https://github.com/resonite-modding-group/ResoniteModLoader) mod for [Resonite](https://resonite.com/) that extensions of screenshot.
 
-Warn: Conflicts with mods that patch WindowsPlatformConnector such as [SaveExif](https://github.com/rassi0429/SaveExif)
-
-注意: [SaveExif](https://github.com/rassi0429/SaveExif) 等のWindowsPlatformConnectorにパッチを当てるModとは競合するのでどちらかにしてください！
-
 ## Current features
 - Save FrooxEngine.PhotoMetadata to screenshot files (XMP)
     - Saved as XMP format in the image file. You can check the embedded metadata at [https://rse.baru.dev/](https://rse.baru.dev/).
 - Restore FrooxEngine.PhotoMetadata from the screenshot file that saved by this mod
     - It will be restored by importing it as an image/texture as usual
 - Dig the folder by month and date (yyyy-MM) when saving screenshot
-- File name date and time becomes local one
 - Selectable image formats: JPEG, WEBP, PNG
 - Save webp as lossy (default is lossless. By saving as lossy, you can get a smaller file size and alpha than jpeg with the same image quality)
+- Speed up PNG and improve JPEG quality
 - Discord webhook integration (you can find in settings)
 ![Discord webhook integration](https://github.com/user-attachments/assets/ca3c2996-0259-4ee1-a4f6-82496aabd892)
 
