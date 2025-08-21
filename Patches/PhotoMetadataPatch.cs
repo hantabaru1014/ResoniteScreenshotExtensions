@@ -9,6 +9,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using static ResoniteScreenshotExtensions.DiscordWebhookClient;
 
 namespace ResoniteScreenshotExtensions;
@@ -20,6 +21,7 @@ public partial class ResoniteScreenshotExtensions : ResoniteMod
     {
         const string MENU_ITEM_TAG = "RSE_POST_TO_DISCORD";
         static readonly Uri DISCORD_ICON_URI = new Uri("resdb:///f6c1a66250d366d213789faefab59a9ec6ac6334e6c4be0af254680c148810dc.png");
+        static readonly SemaphoreSlim _fileSemaphore = new SemaphoreSlim(1, 1);
 
         static void PostToDiscord(Metadata metadata, string filePath)
         {
@@ -162,7 +164,7 @@ public partial class ResoniteScreenshotExtensions : ResoniteMod
                             extension = "." + fileType.Extension;
                     }
                     extension = extension.ToLower();
-                    await WindowsPlatformConnector.ScreenshotSemaphore.WaitAsync().ConfigureAwait(false);
+                    await _fileSemaphore.WaitAsync().ConfigureAwait(false);
                     try
                     {
                         int num = 1;
@@ -171,7 +173,7 @@ public partial class ResoniteScreenshotExtensions : ResoniteMod
                         {
                             string str2 = filename;
                             if (num > 1)
-                                str2 += string.Format(" ({0})", num);
+                                str2 += string.Format("-{0}", num);
                             str1 = Path.Combine(pictures, str2 + extension);
                             num++;
                         }
@@ -210,7 +212,7 @@ public partial class ResoniteScreenshotExtensions : ResoniteMod
                     }
                     finally
                     {
-                        WindowsPlatformConnector.ScreenshotSemaphore.Release();
+                        _fileSemaphore.Release();
                     }
                 }
                 catch (Exception ex)
