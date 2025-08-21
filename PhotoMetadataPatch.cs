@@ -99,14 +99,14 @@ public partial class ResoniteScreenshotExtensions : ResoniteMod
                 switch (format)
                 {
                     case ImageFormat.JPEG:
-                        bmp.Save(dstPath, FREE_IMAGE_FORMAT.FIF_JPEG, FREE_IMAGE_SAVE_FLAGS.JPEG_QUALITYSUPERB);
+                        bmp.Save(dstPath, FREE_IMAGE_FORMAT.FIF_JPEG, (FREE_IMAGE_SAVE_FLAGS)95 | FREE_IMAGE_SAVE_FLAGS.JPEG_SUBSAMPLING_444 | FREE_IMAGE_SAVE_FLAGS.JPEG_PROGRESSIVE);
                         break;
                     case ImageFormat.WEBP:
                         FREE_IMAGE_SAVE_FLAGS quality = (_config?.GetValue(LossyWebpKey) ?? false) ? (FREE_IMAGE_SAVE_FLAGS)_config.GetValue(LossyWebpQualityKey) : FREE_IMAGE_SAVE_FLAGS.WEBP_LOSSLESS;
                         bmp.Save(dstPath, FreeImage.GetFIFFromFormat("webp"), quality);
                         break;
                     case ImageFormat.PNG:
-                        bmp.Save(dstPath, FREE_IMAGE_FORMAT.FIF_PNG, FREE_IMAGE_SAVE_FLAGS.PNG_Z_BEST_COMPRESSION);
+                        bmp.Save(dstPath, FREE_IMAGE_FORMAT.FIF_PNG, (FREE_IMAGE_SAVE_FLAGS)4);
                         break;
                 }
             }
