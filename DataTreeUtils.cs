@@ -1,4 +1,4 @@
-﻿using Elements.Core;
+using Elements.Core;
 using FrooxEngine;
 using Newtonsoft.Json;
 using System.IO;
@@ -11,7 +11,7 @@ public static class DataTreeUtils
     public static void LoadComponent(IComponent component, SavedGraph graph)
     {
         var dict = graph.Root;
-        var control = new LoadControl(component.Slot.World, new ReferenceTranslator(), default, null);
+        var control = new LoadControl(component.Slot.World, new ReferenceTranslator(), default, null!);
         control.TryLoadVersion(dict);
         var flags = dict.TryGetDictionary("FeatureFlags");
         if (flags != null)
@@ -37,7 +37,7 @@ public static class DataTreeUtils
     {
         var sr = new StringReader(json);
         var reader = new JsonTextReader(sr);
-        var node = (DataTreeNode)AccessTools.Method(typeof(DataTreeConverter), "Read").Invoke(null, new object[] { reader });
+        var node = (DataTreeNode?)AccessTools.Method(typeof(DataTreeConverter), "Read").Invoke(null, new object[] { reader });
         if (node != null)
         {
             return new SavedGraph((DataTreeDictionary)node);

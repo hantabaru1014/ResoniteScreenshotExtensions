@@ -1,4 +1,4 @@
-﻿using FreeImageAPI;
+using FreeImageAPI;
 using System.Xml.Linq;
 using FrooxEngine;
 using FreeImageAPI.Metadata;
@@ -20,7 +20,8 @@ public static class XmpMetadata
 
     static string EscapeUnicode(string str)
     {
-        return Regex.Replace(str, @"\\u", "\\\\u").Select(c => {
+        return Regex.Replace(str, @"\\u", "\\\\u").Select(c =>
+        {
             if (c > 0x7F)
             {
                 return "\\u" + ((int)c).ToString("X4");
@@ -36,7 +37,7 @@ public static class XmpMetadata
         return Regex.Replace(decoded, @"\\\\u", "\\u");
     }
 
-    static XElement ParseOrDefaultXmp(string xmlStr)
+    static XElement ParseOrDefaultXmp(string? xmlStr)
     {
         if (string.IsNullOrEmpty(xmlStr))
         {
@@ -112,7 +113,7 @@ public static class XmpMetadata
         }
 
         var user = DeserializeMetadataUser(element);
-        
+
         return new MetadataUserInfo(
             User: user,
             IsInVR: bool.Parse(GetAttribute("UI-IsInVR")),
@@ -231,18 +232,18 @@ public static class XmpMetadata
             LocationHost: DeserializeMetadataUser(locationHostElement),
             LocationAccessLevel: accessLevel,
             LocationHiddenFromListing: hidden,
-            TimeTaken: DateTime.Parse(GetAttribute("TimeTaken", false)),
+            TimeTaken: DateTime.Parse(GetAttribute("TimeTaken", false)!),
             TakenBy: DeserializeMetadataUser(takenByElement),
-            TakenGlobalPosition: float3.Parse(GetAttribute("TakenGlobalPosition", false)),
-            TakenGlobalRotation: floatQ.Parse(GetAttribute("TakenGlobalRotation", false)),
-            TakenGlobalScale: float3.Parse(GetAttribute("TakenGlobalScale", false)),
+            TakenGlobalPosition: float3.Parse(GetAttribute("TakenGlobalPosition", false)!),
+            TakenGlobalRotation: floatQ.Parse(GetAttribute("TakenGlobalRotation", false)!),
+            TakenGlobalScale: float3.Parse(GetAttribute("TakenGlobalScale", false)!),
             AppVersion: GetAttributeStr("AppVersion", false)!,
             UserInfos: userInfos,
             CameraManufacturer: GetAttributeStr("CameraManufacturer", false)!,
             CameraModel: GetAttributeStr("CameraModel", false)!,
-            CameraFOV: float.Parse(GetAttribute("CameraFOV", false)),
-            Is360: bool.Parse(GetAttribute("Is360", false)),
-            StereoLayout: (StereoLayout)Enum.Parse(typeof(StereoLayout), GetAttribute("StereoLayout", false))
+            CameraFOV: float.Parse(GetAttribute("CameraFOV", false)!),
+            Is360: bool.Parse(GetAttribute("Is360", false)!),
+            StereoLayout: (StereoLayout)Enum.Parse(typeof(StereoLayout), GetAttribute("StereoLayout", false)!)
         );
     }
 
@@ -259,7 +260,7 @@ public static class XmpMetadata
 
         SerializeMetadata(description, metadata);
 
-        rdf.Add(description);
+        rdf!.Add(description);
     }
 
     public static void UpsertPhotoMetadata(FreeImageBitmap bmp, Metadata metadata)
@@ -272,6 +273,13 @@ public static class XmpMetadata
         AddRdfDescription(xmpRoot, metadata);
 
         xmpMeta.Xml = "<?xpacket begin=\"\ufeff\"?>" + xmpRoot.ToString(SaveOptions.DisableFormatting) + "<?xpacket end=\"w\"?>";
+    }
+
+    public static string GetXmpXmlString(Metadata metadata)
+    {
+        var xmpRoot = ParseOrDefaultXmp(null);
+        AddRdfDescription(xmpRoot, metadata);
+        return "<?xpacket begin=\"\ufeff\"?>" + xmpRoot.ToString(SaveOptions.DisableFormatting) + "<?xpacket end=\"w\"?>";
     }
 
     static bool TryLoadV1Json(XElement xmpRoot, out string json)

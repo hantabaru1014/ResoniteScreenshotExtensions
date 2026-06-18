@@ -1,64 +1,76 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Library</OutputType>
-    <TargetFramework>net9.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <LangVersion>10</LangVersion>
     <Nullable>enable</Nullable>
     <AppName>Resonite</AppName>
-	  <ModLoaderShort>rml</ModLoaderShort>
+    <ModLoaderShort>rml</ModLoaderShort>
     <AppPath>$(MSBuildThisFileDirectory)$(AppName)</AppPath>
+    
     <AppPath Condition="Exists('C:\Program Files (x86)\Steam\steamapps\common\$(AppName)\')">C:\Program Files (x86)\Steam\steamapps\common\$(AppName)\</AppPath>
+    
     <AppPath Condition="Exists('$(HOME)/.steam/steam/steamapps/common/$(AppName)/')">$(HOME)/.steam/steam/steamapps/common/$(AppName)/</AppPath>
+    
+    <AppPath Condition="Exists('$(HOME)/.var/app/com.valvesoftware.Steam/.local/share/Steam/steamapps/common/$(AppName)/')">$(HOME)/.var/app/com.valvesoftware.Steam/.local/share/Steam/steamapps/common/$(AppName)/</AppPath>
+    
     <CopyLocal>false</CopyLocal>
     <CopyToMods Condition="'$(CopyToMods)'==''">true</CopyToMods>
     <DebugSymbols Condition="'$(Configuration)'=='Release'">false</DebugSymbols>
     <DebugType Condition="'$(Configuration)'=='Release'">None</DebugType>
-    <Version>2.1.1</Version>
+    <Version>2.2.0</Version>
     <Authors>hantabaru1014</Authors>
   </PropertyGroup>
 
   <ItemGroup>
     <Reference Include="HarmonyLib">
-      <HintPath>$(AppPath)$(ModLoaderShort)_libs\0Harmony.dll</HintPath>
+      <HintPath>$(AppPath)$(ModLoaderShort)_libs/0Harmony.dll</HintPath>
       <HintPath Condition="Exists('$(AppPath)0Harmony.dll')">$(AppPath)0Harmony.dll</HintPath>
     </Reference>
     <Reference Include="$(AppName)ModLoader">
       <HintPath>$(AppPath)$(AppName)ModLoader.dll</HintPath>
-      <HintPath>$(AppPath)Libraries\$(AppName)ModLoader.dll</HintPath>
+      <HintPath>$(AppPath)Libraries/$(AppName)ModLoader.dll</HintPath>
     </Reference>
     <Reference Include="FrooxEngine">
-      <HintPath>$(AppPath)\FrooxEngine.dll</HintPath>
+      <HintPath>$(AppPath)Resonite_Data/Managed/FrooxEngine.dll</HintPath>
+      <HintPath Condition="Exists('$(AppPath)FrooxEngine.dll')">$(AppPath)FrooxEngine.dll</HintPath>
     </Reference>
     <Reference Include="FrooxEngine.Store">
-      <HintPath>$(AppPath)\FrooxEngine.Store.dll</HintPath>
+      <HintPath>$(AppPath)Resonite_Data/Managed/FrooxEngine.Store.dll</HintPath>
+      <HintPath Condition="Exists('$(AppPath)FrooxEngine.Store.dll')">$(AppPath)FrooxEngine.Store.dll</HintPath>
     </Reference>
     <Reference Include="Elements.Core">
-      <HintPath>$(AppPath)\Elements.Core.dll</HintPath>
+      <HintPath>$(AppPath)Resonite_Data/Managed/Elements.Core.dll</HintPath>
+      <HintPath Condition="Exists('$(AppPath)Elements.Core.dll')">$(AppPath)Elements.Core.dll</HintPath>
     </Reference>
     <Reference Include="Elements.Assets">
-      <HintPath>$(AppPath)\Elements.Assets.dll</HintPath>
+      <HintPath>$(AppPath)Resonite_Data/Managed/Elements.Assets.dll</HintPath>
+      <HintPath Condition="Exists('$(AppPath)Elements.Assets.dll')">$(AppPath)Elements.Assets.dll</HintPath>
     </Reference>
     <Reference Include="Elements.Data">
-      <HintPath>$(AppPath)\Elements.Data.dll</HintPath>
+      <HintPath>$(AppPath)Resonite_Data/Managed/Elements.Data.dll</HintPath>
+      <HintPath Condition="Exists('$(AppPath)Elements.Data.dll')">$(AppPath)Elements.Data.dll</HintPath>
     </Reference>
     <Reference Include="SkyFrost.Base">
-      <HintPath>$(AppPath)\SkyFrost.Base.dll</HintPath>
+      <HintPath>$(AppPath)Resonite_Data/Managed/SkyFrost.Base.dll</HintPath>
+      <HintPath Condition="Exists('$(AppPath)SkyFrost.Base.dll')">$(AppPath)SkyFrost.Base.dll</HintPath>
     </Reference>
     <Reference Include="SkyFrost.Base.Models">
-      <HintPath>$(AppPath)\SkyFrost.Base.Models.dll</HintPath>
+      <HintPath>$(AppPath)Resonite_Data/Managed/SkyFrost.Base.Models.dll</HintPath>
+      <HintPath Condition="Exists('$(AppPath)SkyFrost.Base.Models.dll')">$(AppPath)SkyFrost.Base.Models.dll</HintPath>
     </Reference>
     <Reference Include="MimeDetective">
-      <HintPath>$(AppPath)\MimeDetective.dll</HintPath>
+      <HintPath>$(AppPath)Resonite_Data/Managed/MimeDetective.dll</HintPath>
+      <HintPath Condition="Exists('$(AppPath)MimeDetective.dll')">$(AppPath)MimeDetective.dll</HintPath>
     </Reference>
     <Reference Include="FreeImageNET">
-      <HintPath>$(AppPath)\FreeImageNET.dll</HintPath>
+      <HintPath>$(AppPath)Resonite_Data/Managed/FreeImageNET.dll</HintPath>
+      <HintPath Condition="Exists('$(AppPath)FreeImageNET.dll')">$(AppPath)FreeImageNET.dll</HintPath>
     </Reference>
     <Reference Include="Newtonsoft.Json">
-      <HintPath>$(AppPath)\Newtonsoft.Json.dll</HintPath>
+      <HintPath>$(AppPath)Resonite_Data/Managed/Newtonsoft.Json.dll</HintPath>
+      <HintPath Condition="Exists('$(AppPath)Newtonsoft.Json.dll')">$(AppPath)Newtonsoft.Json.dll</HintPath>
     </Reference>
-    <PackageReference Include="System.Net.Http" Version="4.3.4" />
-    <PackageReference Include="System.Threading.Tasks.Extensions" />
-    <PackageReference Include="System.Xml.Linq" />
     <PackageReference Include="System.Drawing.Common" Version="9.0.8" />
   </ItemGroup>
 

@@ -1,4 +1,4 @@
-﻿using Elements.Assets;
+using Elements.Assets;
 using Elements.Core;
 using FreeImageAPI;
 using FrooxEngine;
@@ -72,44 +72,144 @@ public partial class ResoniteScreenshotExtensions : ResoniteMod
             }
         }
 
+        static FREE_IMAGE_FORMAT GetFIF(ImageFormat format)
+        {
+            return format switch
+            {
+                ImageFormat.JPEG => FREE_IMAGE_FORMAT.FIF_JPEG,
+                ImageFormat.WEBP => FreeImage.GetFIFFromFormat("webp"),
+                ImageFormat.PNG => FREE_IMAGE_FORMAT.FIF_PNG,
+                _ => FREE_IMAGE_FORMAT.FIF_JPEG
+            };
+        }
+
+        static FREE_IMAGE_SAVE_FLAGS GetSaveFlags(ImageFormat format)
+        {
+            return format switch
+            {
+                ImageFormat.JPEG => (FREE_IMAGE_SAVE_FLAGS)95 | FREE_IMAGE_SAVE_FLAGS.JPEG_SUBSAMPLING_444 | FREE_IMAGE_SAVE_FLAGS.JPEG_PROGRESSIVE,
+                ImageFormat.WEBP => (_config?.GetValue(LossyWebpKey) ?? false) ? (FREE_IMAGE_SAVE_FLAGS)_config.GetValue(LossyWebpQualityKey) : FREE_IMAGE_SAVE_FLAGS.WEBP_LOSSLESS,
+                ImageFormat.PNG => (FREE_IMAGE_SAVE_FLAGS)4,
+                _ => FREE_IMAGE_SAVE_FLAGS.DEFAULT
+            };
+        }
+
         static void SaveImage(Metadata metadata, string srcPath, string dstPath, ImageFormat format)
         {
-            using (var bmp = new FreeImageBitmap(srcPath))
+            bool shouldSaveMetadata = _config?.GetValue(SavePhotoMetadataToFileKey) ?? false;
+            bool isLinux = System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Linux);
+
+            try
             {
-                if (_config?.GetValue(SavePhotoMetadataToFileKey) ?? false)
-                {
-                    XmpMetadata.UpsertPhotoMetadata(bmp, metadata);
-                }
+                string srcExt = Path.GetExtension(srcPath).ToLower();
+                string dstExt = Path.GetExtension(dstPath).ToLower();
+                bool formatsMatch = (srcExt == ".jpg" && dstExt == ".jpg") ||
+                                    (srcExt == ".jpeg" && dstExt == ".jpg") ||
+                                    (srcExt == ".png" && dstExt == ".png") ||
+                                    (srcExt == ".webp" && dstExt == ".webp");
 
-                // EnsureNonHDR
-                var imgType = bmp.ImageType;
-                if (imgType == FREE_IMAGE_TYPE.FIT_RGBF || imgType == FREE_IMAGE_TYPE.FIT_RGBAF)
+                if (formatsMatch)
                 {
-                    bmp.TmoDrago03(0, 0);
-                }
-
-                // TextureEncoder.ConvertToJPG と同じ処理
-                if (format == ImageFormat.JPEG)
-                {
-                    // Ensure24BPP
-                    if (bmp.IsTransparent || bmp.ColorDepth > 24)
+                    if (shouldSaveMetadata)
                     {
-                        bmp.ConvertColorDepth(FREE_IMAGE_COLOR_DEPTH.FICD_24_BPP);
+                        int width, height;
+                        bool isTransparent;
+                        using (var bmp = new FreeImageBitmap(srcPath))
+                        {
+                            width = bmp.Width;
+                            height = bmp.Height;
+                            isTransparent = bmp.IsTransparent;
+                        }
+                        byte[] origBytes = File.ReadAllBytes(srcPath);
+                        byte[] injected = MetadataInjector.InjectXmp(origBytes, format, metadata, width, height, isTransparent);
+                        File.WriteAllBytes(dstPath, injected);
+                    }
+                    else
+                    {
+                        File.Copy(srcPath, dstPath, true);
+                    }
+                    return;
+                }
+            }
+            catch (Exception ex)
+            {
+                Msg($"Fast copy directly failed: {ex.Message}. Falling back to full pipeline.");
+            }
+
+            try
+            {
+                using (var bmp = new FreeImageBitmap(srcPath))
+                {
+                    int width = bmp.Width;
+                    int height = bmp.Height;
+                    bool isTransparent = bmp.IsTransparent;
+
+                    var imgType = bmp.ImageType;
+                    if (imgType == FREE_IMAGE_TYPE.FIT_RGBF || imgType == FREE_IMAGE_TYPE.FIT_RGBAF)
+                    {
+                        bmp.TmoDrago03(0, 0);
+                    }
+
+                    if (format == ImageFormat.JPEG)
+                    {
+                        if (bmp.IsTransparent || bmp.ColorDepth > 24)
+                        {
+                            bmp.ConvertColorDepth(FREE_IMAGE_COLOR_DEPTH.FICD_24_BPP);
+                        }
+                    }
+
+                    byte[] finalBytes;
+                    using (var ms = new MemoryStream())
+                    {
+                        bmp.Save(ms, GetFIF(format), GetSaveFlags(format));
+                        finalBytes = ms.ToArray();
+                    }
+
+                    if (shouldSaveMetadata)
+                    {
+                        finalBytes = MetadataInjector.InjectXmp(finalBytes, format, metadata, width, height, isTransparent);
+                    }
+
+                    File.WriteAllBytes(dstPath, finalBytes);
+                }
+            }
+            catch (Exception ex)
+            {
+                if (isLinux)
+                {
+                    Msg($"FreeImage conversion failed: {ex.Message}. Copying original format file instead.");
+                    string srcExt = Path.GetExtension(srcPath).ToLower();
+                    string realDstPath = Path.ChangeExtension(dstPath, srcExt);
+
+                    if (shouldSaveMetadata)
+                    {
+                        int width, height;
+                        bool isTransparent;
+                        using (var bmp = new FreeImageBitmap(srcPath))
+                        {
+                            width = bmp.Width;
+                            height = bmp.Height;
+                            isTransparent = bmp.IsTransparent;
+                        }
+                        byte[] origBytes = File.ReadAllBytes(srcPath);
+                        byte[] injected = MetadataInjector.InjectXmp(origBytes, srcExt switch
+                        {
+                            ".jpg" => ImageFormat.JPEG,
+                            ".jpeg" => ImageFormat.JPEG,
+                            ".png" => ImageFormat.PNG,
+                            ".webp" => ImageFormat.WEBP,
+                            _ => format
+                        }, metadata, width, height, isTransparent);
+                        File.WriteAllBytes(realDstPath, injected);
+                    }
+                    else
+                    {
+                        File.Copy(srcPath, realDstPath, true);
                     }
                 }
-
-                switch (format)
+                else
                 {
-                    case ImageFormat.JPEG:
-                        bmp.Save(dstPath, FREE_IMAGE_FORMAT.FIF_JPEG, (FREE_IMAGE_SAVE_FLAGS)95 | FREE_IMAGE_SAVE_FLAGS.JPEG_SUBSAMPLING_444 | FREE_IMAGE_SAVE_FLAGS.JPEG_PROGRESSIVE);
-                        break;
-                    case ImageFormat.WEBP:
-                        FREE_IMAGE_SAVE_FLAGS quality = (_config?.GetValue(LossyWebpKey) ?? false) ? (FREE_IMAGE_SAVE_FLAGS)_config.GetValue(LossyWebpQualityKey) : FREE_IMAGE_SAVE_FLAGS.WEBP_LOSSLESS;
-                        bmp.Save(dstPath, FreeImage.GetFIFFromFormat("webp"), quality);
-                        break;
-                    case ImageFormat.PNG:
-                        bmp.Save(dstPath, FREE_IMAGE_FORMAT.FIF_PNG, (FREE_IMAGE_SAVE_FLAGS)4);
-                        break;
+                    throw;
                 }
             }
 
@@ -144,7 +244,20 @@ public partial class ResoniteScreenshotExtensions : ResoniteMod
                     var tmpPath = await engine.AssetManager.GatherAssetFile(url, 100f);
                     if (tmpPath is null) return;
 
-                    string pictures = Environment.GetFolderPath(Environment.SpecialFolder.MyPictures);
+                    string pictures = _config?.GetValue(CustomSavePathKey) ?? "";
+                    if (string.IsNullOrWhiteSpace(pictures))
+                    {
+                        pictures = Environment.GetFolderPath(Environment.SpecialFolder.MyPictures);
+                    }
+                    if (string.IsNullOrWhiteSpace(pictures))
+                    {
+                        pictures = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+                    }
+                    if (string.IsNullOrWhiteSpace(pictures))
+                    {
+                        pictures = AppContext.BaseDirectory;
+                    }
+
                     pictures = Path.Combine(pictures, engine.Cloud.Platform.Name);
                     if (_config?.GetValue(DigFolderWhenSavingKey) ?? false)
                     {
@@ -183,6 +296,8 @@ public partial class ResoniteScreenshotExtensions : ResoniteMod
                         }
                         while (File.Exists(str1));
 
+                        Msg($"Saving screenshot to: {str1}");
+
                         if (_keepOriginalScreenshotFormat)
                         {
                             if (extension != ".jpg" && extension != ".webp" && extension != ".png")
@@ -210,9 +325,9 @@ public partial class ResoniteScreenshotExtensions : ResoniteMod
                     }
                     catch (Exception ex)
                     {
-                        Error("Exception saving screenshot to Windows:\n" + ex);
+                        Error("Exception saving screenshot:\n" + ex);
                         _config?.Set(EnabledKey, false);
-                        NotificationMessage.SpawnTextMessage("[ScreenshotExtensions] Failed saving screenshot!", colorX.Red);
+                        NotificationMessage.SpawnTextMessage($"[ScreenshotExtensions] Failed saving screenshot: {ex.Message}", colorX.Red);
                     }
                     finally
                     {
@@ -221,9 +336,9 @@ public partial class ResoniteScreenshotExtensions : ResoniteMod
                 }
                 catch (Exception ex)
                 {
-                    Error("Exception saving screenshot to Windows:\n" + ex);
+                    Error("Exception saving screenshot:\n" + ex);
                     _config.Set(EnabledKey, false);
-                    NotificationMessage.SpawnTextMessage("[ScreenshotExtensions] Failed saving screenshot!", colorX.Red);
+                    NotificationMessage.SpawnTextMessage($"[ScreenshotExtensions] Failed saving screenshot: {ex.Message}", colorX.Red);
                 }
             });
         }
@@ -243,7 +358,7 @@ public partial class ResoniteScreenshotExtensions : ResoniteMod
             }
             item.Button.LocalPressed += (button, eventData) =>
             {
-                __instance.LocalUser.CloseContextMenu(null);
+                __instance.LocalUser.CloseContextMenu(null!);
                 Msg("Posting to Discord...");
                 __instance.StartGlobalTask(async () =>
                 {
