@@ -220,8 +220,8 @@ public partial class ResoniteScreenshotExtensions : ResoniteMod
         }
 
         [HarmonyPostfix]
-        [HarmonyPatch(nameof(PhotoMetadata.NotifyOfScreenshot))]
-        static void NotifyOfScreenshot_Postfix(PhotoMetadata __instance)
+        [HarmonyPatch("RunExport")]
+        static void RunExport_Postfix(PhotoMetadata __instance)
         {
             if (!(_config?.GetValue(EnabledKey) ?? false)) return;
 
@@ -232,7 +232,7 @@ public partial class ResoniteScreenshotExtensions : ResoniteMod
             var engine = __instance.Engine;
             var timeTaken = __instance.TimeTaken.Value.ToLocalTime();
 
-            // PhotoMetadata を WindowsPlatformConnector.NotifyOfScreenshot に確実に渡すのが面倒なのでここで代替する
+            // PhotoMetadata を GenericOperatingSystemConnector.NotifyOfScreenshot に確実に渡すのが面倒なのでここで代替する
             __instance.StartGlobalTask(async () =>
             {
                 try
@@ -343,12 +343,14 @@ public partial class ResoniteScreenshotExtensions : ResoniteMod
             });
         }
 
+        // GenerateMenuItems は PhotoMetadata と VideoMetadata の共通基底クラスにあるので、PhotoMetadata のときだけ処理する
         [HarmonyPostfix]
-        [HarmonyPatch(nameof(PhotoMetadata.GenerateMenuItems))]
-        static void GenerateMenuItems_Postfix(PhotoMetadata __instance, ContextMenu menu)
+        [HarmonyPatch(typeof(CameraMediaMetadataBase), nameof(CameraMediaMetadataBase.GenerateMenuItems))]
+        static void GenerateMenuItems_Postfix(CameraMediaMetadataBase __instance, ContextMenu menu)
         {
+            if (__instance is not PhotoMetadata photoMetadata) return;
             if (!(_config?.GetValue(DiscordWebhookGenerateMenuKey) ?? false) || (_config.GetValue(DiscordWebhookUrlKey) ?? "").Length == 0) return;
-            if (!__instance.Enabled) return;
+            if (!photoMetadata.Enabled) return;
 
             var item = menu.Slot.GetComponentInChildren<ContextMenuItem>((i) => i.Slot.Tag == MENU_ITEM_TAG);
             if (item == null)
@@ -358,19 +360,19 @@ public partial class ResoniteScreenshotExtensions : ResoniteMod
             }
             item.Button.LocalPressed += (button, eventData) =>
             {
-                __instance.LocalUser.CloseContextMenu(null!);
+                photoMetadata.LocalUser.CloseContextMenu(null!);
                 Msg("Posting to Discord...");
-                __instance.StartGlobalTask(async () =>
+                photoMetadata.StartGlobalTask(async () =>
                 {
-                    var tex = __instance.Slot.GetComponent<StaticTexture2D>();
+                    var tex = photoMetadata.Slot.GetComponent<StaticTexture2D>();
                     var url = tex?.URL.Value;
                     if (url is null) return;
 
                     await new ToBackground();
-                    var tmpPath = await __instance.Engine.AssetManager.GatherAssetFile(url, 100f);
+                    var tmpPath = await photoMetadata.Engine.AssetManager.GatherAssetFile(url, 100f);
                     if (tmpPath is null) return;
 
-                    PostToDiscord(new Metadata(__instance), tmpPath);
+                    PostToDiscord(new Metadata(photoMetadata), tmpPath);
                 });
             };
         }
