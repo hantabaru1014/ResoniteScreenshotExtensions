@@ -18,8 +18,8 @@ public partial class ResoniteScreenshotExtensions : ResoniteMod
         }
 
         [HarmonyPostfix]
-        [HarmonyPatch(nameof(GenericOperatingSystemConnector.Initialize))]
-        static void Initialize_Postfix()
+        [HarmonyPatch(nameof(GenericOperatingSystemConnector.RegisterOperatingSystemSettings))]
+        static void RegisterOperatingSystemSettings_Postfix()
         {
             Settings.RegisterValueChanges<OperatingSystemSettings>(OnSettingsChanged);
         }
