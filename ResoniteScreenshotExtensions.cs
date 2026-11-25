@@ -73,7 +73,7 @@ public partial class ResoniteScreenshotExtensions : ResoniteMod
         Harmony harmony = new Harmony("dev.baru.resonite.ResoniteScreenshotExtensions");
         try
         {
-            harmony.PatchAll();
+            harmony.PatchAll(typeof(ResoniteScreenshotExtensions).Assembly);
         }
         catch (Exception ex)
         {
