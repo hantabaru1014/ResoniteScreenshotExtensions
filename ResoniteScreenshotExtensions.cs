@@ -1,5 +1,6 @@
 using HarmonyLib;
 using ResoniteModLoader;
+using System;
 
 namespace ResoniteScreenshotExtensions;
 
@@ -7,7 +8,7 @@ public partial class ResoniteScreenshotExtensions : ResoniteMod
 {
     public override string Name => "ResoniteScreenshotExtensions";
     public override string Author => "hantabaru1014";
-    public override string Version => "2.2.2";
+    public override string Version => "2.3.0";
     public override string Link => "https://github.com/hantabaru1014/ResoniteScreenshotExtensions";
 
     [AutoRegisterConfigKey]
@@ -64,8 +65,27 @@ public partial class ResoniteScreenshotExtensions : ResoniteMod
     public override void OnEngineInit()
     {
         _config = GetConfiguration();
+        ApplyPatches();
+    }
 
+    private static void ApplyPatches()
+    {
         Harmony harmony = new Harmony("dev.baru.resonite.ResoniteScreenshotExtensions");
-        harmony.PatchAll();
+        try
+        {
+            harmony.PatchAll();
+        }
+        catch (Exception ex)
+        {
+            Error("Failed to apply patches. All patches have been reverted and Resonite's default behavior will be used.\n" + ex);
+            try
+            {
+                harmony.UnpatchAll(harmony.Id);
+            }
+            catch (Exception unpatchEx)
+            {
+                Error("Failed to revert patches:\n" + unpatchEx);
+            }
+        }
     }
 }
