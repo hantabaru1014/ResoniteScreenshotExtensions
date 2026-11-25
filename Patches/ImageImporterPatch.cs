@@ -1,53 +1,82 @@
 ﻿using ResoniteModLoader;
 using HarmonyLib;
 using FrooxEngine;
-using System.Reflection;
 using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
 using System.Reflection.Emit;
+using System.Runtime.CompilerServices;
 using System;
 
 namespace ResoniteScreenshotExtensions;
 
 public partial class ResoniteScreenshotExtensions : ResoniteMod
 {
-    [HarmonyPatch]
-    class ImageImporter_Patch
+    static readonly ConditionalWeakTable<Slot, string> _importingImageFiles = new();
+
+    [HarmonyPatch(typeof(ImageImportDialog), nameof(ImageImportDialog.RunImport), new Type[0])]
+    class ImageImportDialog_RunImport_Patch
     {
-        static Type TargetClass()
-        {
-            return AccessTools.FirstInner(typeof(ImageImporter), t => t.Name.Contains(nameof(ImageImporter.ImportImage)));
-        }
-
-        static MethodBase TargetMethod()
-        {
-            return AccessTools.Method(TargetClass(), "MoveNext");
-        }
-
         static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions, ILGenerator generator)
         {
-            var targetClass = TargetClass();
-            var setupMethod = AccessTools.Method(typeof(ImageImporter), nameof(ImageImporter.SetupTextureProxyComponents));
-            var loadThis = new CodeInstruction(OpCodes.Ldarg_0);
+            var codes = instructions.ToList();
 
-            return new CodeMatcher(instructions, generator)
-                .SearchForward(code => code.Calls(setupMethod))
-                .Advance(1)
-                .Insert(
-                    loadThis,
-                    CodeInstruction.LoadField(targetClass, "targetSlot"),
-                    loadThis,
-                    CodeInstruction.LoadField(targetClass, "item"),
-                    loadThis,
-                    CodeInstruction.LoadField(targetClass, "setupScreenshotMetadata"),
-                    new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(ImageImporter_Patch), nameof(LoadMetadata)))
-                )
-                .InstructionEnumeration();
+            var slotFieldIndex = codes.FindIndex(c =>
+                c.opcode == OpCodes.Stfld
+                && c.operand is FieldInfo f
+                && f.FieldType == typeof(Slot)
+                && f.DeclaringType?.DeclaringType == typeof(ImageImportDialog)
+                && f.DeclaringType.GetFields().Any(x => x.FieldType == typeof(ImportItem)));
+            if (slotFieldIndex < 0)
+            {
+                Error("ImageImportDialog.RunImport: target slot field not found. LoadPhotoMetadataFromFile will not work.");
+                return codes;
+            }
+            var slotField = (FieldInfo)codes[slotFieldIndex].operand;
+            var closureType = slotField.DeclaringType!;
+            var itemField = closureType.GetFields().First(x => x.FieldType == typeof(ImportItem));
+
+            var ctorIndex = codes.FindLastIndex(slotFieldIndex, c =>
+                c.opcode == OpCodes.Newobj && c.operand is ConstructorInfo ctor && ctor.DeclaringType == closureType);
+            if (ctorIndex < 0 || ctorIndex + 1 >= codes.Count || !codes[ctorIndex + 1].IsStloc())
+            {
+                Error("ImageImportDialog.RunImport: closure local not found. LoadPhotoMetadataFromFile will not work.");
+                return codes;
+            }
+            var closureLocal = codes[ctorIndex + 1].LocalIndex();
+
+            codes.InsertRange(slotFieldIndex + 1, new[]
+            {
+                CodeInstruction.LoadLocal(closureLocal),
+                new CodeInstruction(OpCodes.Ldfld, itemField),
+                CodeInstruction.LoadLocal(closureLocal),
+                new CodeInstruction(OpCodes.Ldfld, slotField),
+                new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(ImageImportDialog_RunImport_Patch), nameof(RegisterImportItem))),
+            });
+            return codes;
         }
 
-        static void LoadMetadata(Slot targetSlot, ImportItem item, bool skip)
+        static void RegisterImportItem(ImportItem item, Slot slot)
         {
-            if (skip || !(_config?.GetValue(LoadPhotoMetadataFromFileKey) ?? false) || string.IsNullOrEmpty(item.filePath)) return;
-            if (XmpMetadata.TryLoadPhotoMetadata(item.filePath, targetSlot))
+            if (slot == null || string.IsNullOrEmpty(item.filePath)) return;
+            _importingImageFiles.AddOrUpdate(slot, item.filePath);
+        }
+    }
+
+    [HarmonyPatch(typeof(ImageImporter), nameof(ImageImporter.SetupTextureProxyComponents))]
+    class ImageImporter_SetupTextureProxyComponents_Patch
+    {
+        static void Postfix(Slot targetSlot, bool setupPhotoMetadata)
+        {
+            if (targetSlot == null || !_importingImageFiles.TryGetValue(targetSlot, out var filePath)) return;
+            _importingImageFiles.Remove(targetSlot);
+            LoadMetadata(targetSlot, filePath, setupPhotoMetadata);
+        }
+
+        static void LoadMetadata(Slot targetSlot, string filePath, bool skip)
+        {
+            if (skip || !(_config?.GetValue(LoadPhotoMetadataFromFileKey) ?? false) || string.IsNullOrEmpty(filePath)) return;
+            if (XmpMetadata.TryLoadPhotoMetadata(filePath, targetSlot))
             {
                 Msg("Loaded PhotoMetadata from XMP");
             }
