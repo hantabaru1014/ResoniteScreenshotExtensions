@@ -29,8 +29,7 @@ public partial class ResoniteScreenshotExtensions : ResoniteMod
                 && f.DeclaringType.GetFields().Any(x => x.FieldType == typeof(ImportItem)));
             if (slotFieldIndex < 0)
             {
-                Error("ImageImportDialog.RunImport: target slot field not found. LoadPhotoMetadataFromFile will not work.");
-                return codes;
+                throw new InvalidOperationException("ImageImportDialog.RunImport: target slot field not found.");
             }
             var slotField = (FieldInfo)codes[slotFieldIndex].operand;
             var closureType = slotField.DeclaringType!;
@@ -40,8 +39,7 @@ public partial class ResoniteScreenshotExtensions : ResoniteMod
                 c.opcode == OpCodes.Newobj && c.operand is ConstructorInfo ctor && ctor.DeclaringType == closureType);
             if (ctorIndex < 0 || ctorIndex + 1 >= codes.Count || !codes[ctorIndex + 1].IsStloc())
             {
-                Error("ImageImportDialog.RunImport: closure local not found. LoadPhotoMetadataFromFile will not work.");
-                return codes;
+                throw new InvalidOperationException("ImageImportDialog.RunImport: closure local not found.");
             }
             var closureLocal = codes[ctorIndex + 1].LocalIndex();
 
@@ -58,8 +56,15 @@ public partial class ResoniteScreenshotExtensions : ResoniteMod
 
         static void RegisterImportItem(ImportItem item, Slot slot)
         {
-            if (slot == null || string.IsNullOrEmpty(item.filePath)) return;
-            _importingImageFiles.AddOrUpdate(slot, item.filePath);
+            try
+            {
+                if (slot == null || string.IsNullOrEmpty(item.filePath)) return;
+                _importingImageFiles.AddOrUpdate(slot, item.filePath);
+            }
+            catch (Exception ex)
+            {
+                Error(ex);
+            }
         }
     }
 
@@ -68,9 +73,16 @@ public partial class ResoniteScreenshotExtensions : ResoniteMod
     {
         static void Postfix(Slot targetSlot, bool setupPhotoMetadata)
         {
-            if (targetSlot == null || !_importingImageFiles.TryGetValue(targetSlot, out var filePath)) return;
-            _importingImageFiles.Remove(targetSlot);
-            LoadMetadata(targetSlot, filePath, setupPhotoMetadata);
+            try
+            {
+                if (targetSlot == null || !_importingImageFiles.TryGetValue(targetSlot, out var filePath)) return;
+                _importingImageFiles.Remove(targetSlot);
+                LoadMetadata(targetSlot, filePath, setupPhotoMetadata);
+            }
+            catch (Exception ex)
+            {
+                Error(ex);
+            }
         }
 
         static void LoadMetadata(Slot targetSlot, string filePath, bool skip)

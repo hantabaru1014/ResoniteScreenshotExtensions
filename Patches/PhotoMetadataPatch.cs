@@ -10,6 +10,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
 using static ResoniteScreenshotExtensions.DiscordWebhookClient;
 
 namespace ResoniteScreenshotExtensions;
@@ -219,109 +220,47 @@ public partial class ResoniteScreenshotExtensions : ResoniteMod
             }
         }
 
+        [HarmonyPrefix]
+        [HarmonyPatch("RunExport")]
+        static void RunExport_Prefix(PhotoMetadata __instance, out ScreenshotSaveClaim? __state)
+        {
+            __state = null;
+            try
+            {
+                if (!(_config?.GetValue(EnabledKey) ?? false)) return;
+                __state =ClaimScreenshot(__instance.TimeTaken.Value);
+            }
+            catch (Exception ex)
+            {
+                Error("Exception claiming screenshot:\n" + ex);
+                __state?.Fail();
+                __state = null;
+            }
+        }
+
         [HarmonyPostfix]
         [HarmonyPatch("RunExport")]
-        static void RunExport_Postfix(PhotoMetadata __instance)
+        static void RunExport_Postfix(PhotoMetadata __instance, ScreenshotSaveClaim? __state)
         {
-            if (!(_config?.GetValue(EnabledKey) ?? false)) return;
+            if (__state == null) return;
 
-            // MEMO: spawn権限のないワールドでは写真のSlotがdestroyされてしまうため、photoMetadataへの参照が確実にあるタイミングで情報を取得しておく
-            var metadata = new Metadata(__instance);
-            var tex = __instance.Slot.GetComponent<StaticTexture2D>();
-            var url = tex?.URL.Value;
-            var engine = __instance.Engine;
-            var timeTaken = __instance.TimeTaken.Value.ToLocalTime();
-
-            // PhotoMetadata を GenericOperatingSystemConnector.NotifyOfScreenshot に確実に渡すのが面倒なのでここで代替する
-            __instance.StartGlobalTask(async () =>
+            var claim = __state;
+            try
             {
-                try
+                // MEMO: spawn権限のないワールドでは写真のSlotがdestroyされてしまうため、photoMetadataへの参照が確実にあるタイミングで情報を取得しておく
+                var metadata = new Metadata(__instance);
+                var tex = __instance.Slot.GetComponent<StaticTexture2D>();
+                var url = tex?.URL.Value;
+                var engine = __instance.Engine;
+                var timeTaken = claim.TimeTaken;
+
+                // PhotoMetadata を GenericOperatingSystemConnector.NotifyOfScreenshot に確実に渡すのが面倒なのでここで代替する
+                __instance.StartGlobalTask(async () =>
                 {
-                    if (url is null) return;
-
-                    await new ToBackground();
-                    // キャッシュが効いてるはずなので重複して実行しても大してコストはかからない認識
-                    var tmpPath = await engine.AssetManager.GatherAssetFile(url, 100f);
-                    if (tmpPath is null) return;
-
-                    string pictures = _config?.GetValue(CustomSavePathKey) ?? "";
-                    if (string.IsNullOrWhiteSpace(pictures))
-                    {
-                        pictures = Environment.GetFolderPath(Environment.SpecialFolder.MyPictures);
-                    }
-                    if (string.IsNullOrWhiteSpace(pictures))
-                    {
-                        pictures = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-                    }
-                    if (string.IsNullOrWhiteSpace(pictures))
-                    {
-                        pictures = AppContext.BaseDirectory;
-                    }
-
-                    pictures = Path.Combine(pictures, engine.Cloud.Platform.Name);
-                    if (_config?.GetValue(DigFolderWhenSavingKey) ?? false)
-                    {
-                        pictures = Path.Combine(pictures, timeTaken.ToString("yyyy-MM"));
-                    }
-                    Directory.CreateDirectory(pictures);
-
-                    string filename = timeTaken.ToString("yyyy-MM-dd HH.mm.ss");
-                    var format = _config?.GetValue(ImageFormatKey) ?? ImageFormat.JPEG;
-                    string extension = _keepOriginalScreenshotFormat ? Path.GetExtension(tmpPath) : format switch
-                    {
-                        ImageFormat.JPEG => ".jpg",
-                        ImageFormat.WEBP => ".webp",
-                        ImageFormat.PNG => ".png",
-                        _ => ".jpg"
-                    };
-                    if (string.IsNullOrWhiteSpace(extension))
-                    {
-                        FileType fileType = new FileInfo(tmpPath).GetFileType();
-                        if (fileType != null)
-                            extension = "." + fileType.Extension;
-                    }
-                    extension = extension.ToLower();
-                    await _fileSemaphore.WaitAsync().ConfigureAwait(false);
+                    var saved = false;
                     try
                     {
-                        int num = 1;
-                        string str1;
-                        do
-                        {
-                            string str2 = filename;
-                            if (num > 1)
-                                str2 += string.Format("-{0}", num);
-                            str1 = Path.Combine(pictures, str2 + extension);
-                            num++;
-                        }
-                        while (File.Exists(str1));
-
-                        Msg($"Saving screenshot to: {str1}");
-
-                        if (_keepOriginalScreenshotFormat)
-                        {
-                            if (extension != ".jpg" && extension != ".webp" && extension != ".png")
-                            {
-                                File.Copy(tmpPath, str1);
-                                File.SetAttributes(str1, FileAttributes.Normal);
-                                Msg($"{str1} is an unsupported format, so metadata was not saved.");
-                            }
-                            else
-                            {
-                                var extFormat = extension switch
-                                {
-                                    ".jpg" => ImageFormat.JPEG,
-                                    ".webp" => ImageFormat.WEBP,
-                                    ".png" => ImageFormat.PNG,
-                                    _ => ImageFormat.JPEG
-                                };
-                                SaveImage(metadata, tmpPath, str1, extFormat);
-                            }
-                        }
-                        else
-                        {
-                            SaveImage(metadata, tmpPath, str1, format);
-                        }
+                        saved = await SaveScreenshot(engine, url, metadata, timeTaken.ToLocalTime());
                     }
                     catch (Exception ex)
                     {
@@ -329,18 +268,117 @@ public partial class ResoniteScreenshotExtensions : ResoniteMod
                         _config?.Set(EnabledKey, false);
                         NotificationMessage.SpawnTextMessage($"[ScreenshotExtensions] Failed saving screenshot: {ex.Message}", colorX.Red);
                     }
-                    finally
+
+                    if (saved)
                     {
-                        _fileSemaphore.Release();
+                        claim.Complete();
+                    }
+                    else
+                    {
+                        claim.Fail();
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                Error("Exception starting screenshot save:\n" + ex);
+                claim.Fail();
+            }
+        }
+
+        static async Task<bool> SaveScreenshot(Engine engine, Uri? url, Metadata metadata, DateTime timeTaken)
+        {
+            if (url is null) return false;
+
+            await new ToBackground();
+            // キャッシュが効いてるはずなので重複して実行しても大してコストはかからない認識
+            var tmpPath = await engine.AssetManager.GatherAssetFile(url, 100f);
+            if (tmpPath is null) return false;
+
+            string pictures = _config?.GetValue(CustomSavePathKey) ?? "";
+            if (string.IsNullOrWhiteSpace(pictures))
+            {
+                pictures = Environment.GetFolderPath(Environment.SpecialFolder.MyPictures);
+            }
+            if (string.IsNullOrWhiteSpace(pictures))
+            {
+                pictures = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            }
+            if (string.IsNullOrWhiteSpace(pictures))
+            {
+                pictures = AppContext.BaseDirectory;
+            }
+
+            pictures = Path.Combine(pictures, engine.Cloud.Platform.Name);
+            if (_config?.GetValue(DigFolderWhenSavingKey) ?? false)
+            {
+                pictures = Path.Combine(pictures, timeTaken.ToString("yyyy-MM"));
+            }
+            Directory.CreateDirectory(pictures);
+
+            string filename = timeTaken.ToString("yyyy-MM-dd HH.mm.ss");
+            var format = _config?.GetValue(ImageFormatKey) ?? ImageFormat.JPEG;
+            string extension = _keepOriginalScreenshotFormat ? Path.GetExtension(tmpPath) : format switch
+            {
+                ImageFormat.JPEG => ".jpg",
+                ImageFormat.WEBP => ".webp",
+                ImageFormat.PNG => ".png",
+                _ => ".jpg"
+            };
+            if (string.IsNullOrWhiteSpace(extension))
+            {
+                FileType fileType = new FileInfo(tmpPath).GetFileType();
+                if (fileType != null)
+                    extension = "." + fileType.Extension;
+            }
+            extension = extension.ToLower();
+            await _fileSemaphore.WaitAsync().ConfigureAwait(false);
+            try
+            {
+                int num = 1;
+                string str1;
+                do
+                {
+                    string str2 = filename;
+                    if (num > 1)
+                        str2 += string.Format("-{0}", num);
+                    str1 = Path.Combine(pictures, str2 + extension);
+                    num++;
+                }
+                while (File.Exists(str1));
+
+                Msg($"Saving screenshot to: {str1}");
+
+                if (_keepOriginalScreenshotFormat)
+                {
+                    if (extension != ".jpg" && extension != ".webp" && extension != ".png")
+                    {
+                        File.Copy(tmpPath, str1);
+                        File.SetAttributes(str1, FileAttributes.Normal);
+                        Msg($"{str1} is an unsupported format, so metadata was not saved.");
+                    }
+                    else
+                    {
+                        var extFormat = extension switch
+                        {
+                            ".jpg" => ImageFormat.JPEG,
+                            ".webp" => ImageFormat.WEBP,
+                            ".png" => ImageFormat.PNG,
+                            _ => ImageFormat.JPEG
+                        };
+                        SaveImage(metadata, tmpPath, str1, extFormat);
                     }
                 }
-                catch (Exception ex)
+                else
                 {
-                    Error("Exception saving screenshot:\n" + ex);
-                    _config.Set(EnabledKey, false);
-                    NotificationMessage.SpawnTextMessage($"[ScreenshotExtensions] Failed saving screenshot: {ex.Message}", colorX.Red);
+                    SaveImage(metadata, tmpPath, str1, format);
                 }
-            });
+            }
+            finally
+            {
+                _fileSemaphore.Release();
+            }
+            return true;
         }
 
         // GenerateMenuItems は PhotoMetadata と VideoMetadata の共通基底クラスにあるので、PhotoMetadata のときだけ処理する
@@ -348,7 +386,19 @@ public partial class ResoniteScreenshotExtensions : ResoniteMod
         [HarmonyPatch(typeof(CameraMediaMetadataBase), nameof(CameraMediaMetadataBase.GenerateMenuItems))]
         static void GenerateMenuItems_Postfix(CameraMediaMetadataBase __instance, ContextMenu menu)
         {
-            if (__instance is not PhotoMetadata photoMetadata) return;
+            try
+            {
+                GenerateMenuItems(__instance, menu);
+            }
+            catch (Exception ex)
+            {
+                Error(ex);
+            }
+        }
+
+        static void GenerateMenuItems(CameraMediaMetadataBase metadataBase, ContextMenu menu)
+        {
+            if (metadataBase is not PhotoMetadata photoMetadata) return;
             if (!(_config?.GetValue(DiscordWebhookGenerateMenuKey) ?? false) || (_config.GetValue(DiscordWebhookUrlKey) ?? "").Length == 0) return;
             if (!photoMetadata.Enabled) return;
 
