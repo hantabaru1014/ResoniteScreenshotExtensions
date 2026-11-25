@@ -220,13 +220,31 @@ public partial class ResoniteScreenshotExtensions : ResoniteMod
             }
         }
 
+        [HarmonyPrefix]
+        [HarmonyPatch("RunExport")]
+        static void RunExport_Prefix(PhotoMetadata __instance, out ScreenshotSaveClaim? __state)
+        {
+            __state = null;
+            try
+            {
+                if (!(_config?.GetValue(EnabledKey) ?? false)) return;
+                __state =ClaimScreenshot(__instance.TimeTaken.Value);
+            }
+            catch (Exception ex)
+            {
+                Error("Exception claiming screenshot:\n" + ex);
+                __state?.Fail();
+                __state = null;
+            }
+        }
+
         [HarmonyPostfix]
         [HarmonyPatch("RunExport")]
-        static void RunExport_Postfix(PhotoMetadata __instance)
+        static void RunExport_Postfix(PhotoMetadata __instance, ScreenshotSaveClaim? __state)
         {
-            if (!(_config?.GetValue(EnabledKey) ?? false)) return;
+            if (__state == null) return;
 
-            ScreenshotSaveClaim? claim = null;
+            var claim = __state;
             try
             {
                 // MEMO: spawn権限のないワールドでは写真のSlotがdestroyされてしまうため、photoMetadataへの参照が確実にあるタイミングで情報を取得しておく
@@ -234,10 +252,8 @@ public partial class ResoniteScreenshotExtensions : ResoniteMod
                 var tex = __instance.Slot.GetComponent<StaticTexture2D>();
                 var url = tex?.URL.Value;
                 var engine = __instance.Engine;
-                var timeTaken = __instance.TimeTaken.Value;
+                var timeTaken = claim.TimeTaken;
 
-                claim = ClaimScreenshot(timeTaken);
-                var startedClaim = claim;
                 // PhotoMetadata を GenericOperatingSystemConnector.NotifyOfScreenshot に確実に渡すのが面倒なのでここで代替する
                 __instance.StartGlobalTask(async () =>
                 {
@@ -255,18 +271,18 @@ public partial class ResoniteScreenshotExtensions : ResoniteMod
 
                     if (saved)
                     {
-                        startedClaim.Complete();
+                        claim.Complete();
                     }
                     else
                     {
-                        startedClaim.Fail();
+                        claim.Fail();
                     }
                 });
             }
             catch (Exception ex)
             {
                 Error("Exception starting screenshot save:\n" + ex);
-                claim?.Fail();
+                claim.Fail();
             }
         }
 

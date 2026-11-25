@@ -40,6 +40,7 @@ public partial class ResoniteScreenshotExtensions : ResoniteMod
         bool _completed;
 
         public DateTime CreatedAt { get; } = DateTime.UtcNow;
+        public DateTime TimeTaken => _timeTaken;
 
         public ScreenshotSaveClaim(DateTime timeTaken)
         {
